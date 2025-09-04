@@ -1,12 +1,16 @@
 # src/chatbot/main.py
 import os
 import sys
+import asyncio
 from datetime import datetime
 from dotenv import load_dotenv
 
 from ollama_client import OllamaClient
 from session_manager import SessionManager
 from logger import InteractionLogger
+
+from mcp_servers.mcp_files import create_file
+from mcp_servers.mcp_git import git_init, git_add, git_commit
 
 class MCPChatbot:
     def __init__(self):
@@ -115,7 +119,39 @@ class MCPChatbot:
             
         elif command == '/quit':
             return True
-            
+        
+        elif command.startswith('/fs '):
+            # /fs create <filename> <contenido>
+            parts = command.split(" ", 3)
+            if len(parts) < 4 or parts[1] != "create":
+                print("❌ Uso: /fs create <filename> <contenido>")
+                return True
+            filename, content = parts[2], parts[3]
+            result = create_file(filename, content)
+            print(result)
+            return True
+
+        elif command.startswith('/git '):
+            parts = command.split(" ", 2)
+            action = parts[1] if len(parts) > 1 else ""
+
+            if action == "init":
+                print(git_init())
+                return True
+            elif action == "add":
+                print(git_add())
+                return True
+            elif action == "commit":
+                if len(parts) < 3:
+                    print("❌ Uso: /git commit \"mensaje\"")
+                    return True
+                message = parts[2].strip('"')
+                print(git_commit(message))
+                return True
+            else:
+                print("❌ Comandos disponibles: /git init | /git add | /git commit \"mensaje\"")
+                return True
+
         return False
     
     def process_user_message(self, message: str) -> str:
@@ -183,7 +219,7 @@ class MCPChatbot:
             self.logger.logger.error(f"Error en loop principal: {str(e)}")
         finally:
             # Guardar sesión al salir
-            self.session.save_session(f"/sessions{self.session_id}.json")
+            self.session.save_session(f"{self.session_id}.json")
             print("💾 Sesión guardada automáticamente")
             print("👋 ¡Hasta luego!")
 
