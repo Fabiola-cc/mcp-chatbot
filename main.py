@@ -56,7 +56,7 @@ class MCPChatbot:
         print()
         print("📋 COMANDOS ESPECIALES:")
         print("  /fs create <file> <contenido>")
-        print("  /git init | /git add | /git commit \"msg\"")
+        print("  /git init | /git add | /git add | /git commit \"msg\"")
         print("  /sleep help  - Conoce el recomendador de rutinas de sueño")
         print("  /help        - Mostrar esta ayuda")
         print("  /log         - Mostrar log de interacciones")
