@@ -16,7 +16,7 @@ class SleepCoachClient:
     async def start_server(self):
         """Inicia el servidor Sleep Coach"""
         try:
-            server_path = "chatbot\mcp_servers\sleep_coach.py"
+            server_path = "C:/Users/Fabi/Documents/U/GitHub/SleepCoachServer/sleep_coach.py"
             
             # Asegurarse de que el archivo existe
             import os

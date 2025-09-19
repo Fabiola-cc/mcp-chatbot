@@ -5,5 +5,9 @@
 2.3.7
 2.31.0
 
+logs
+sessionsInfo
+workspace
+
 __pycache__
 *.json

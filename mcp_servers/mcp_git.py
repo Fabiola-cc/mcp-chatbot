@@ -2,7 +2,6 @@ import subprocess
 import os
 
 WORKSPACE = "workspace"
-os.makedirs(WORKSPACE, exist_ok=True)
 
 def run_git_command(command, cwd=WORKSPACE):
     """Ejecuta comando git y devuelve salida"""

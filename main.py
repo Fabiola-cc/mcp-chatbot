@@ -6,11 +6,12 @@ from datetime import datetime
 from dotenv import load_dotenv
 from mcp import ClientSession
 
-from ollama_client import OllamaClient
-from session_manager import SessionManager
-from logger import InteractionLogger
-from sleep_coach_client import SleepCoachClient
-from remote_client import RemoteSleepQuotesClient
+from clients.ollama_client import OllamaClient
+from clients.sleep_coach_client import SleepCoachClient
+from clients.remote_client import RemoteSleepQuotesClient
+
+from tools.session_manager import SessionManager
+from tools.logger import InteractionLogger
 
 from mcp_servers.mcp_files import create_file
 from mcp_servers.mcp_git import git_init, git_add, git_commit
@@ -150,6 +151,7 @@ class MCPChatbot:
             return True
 
         elif command.startswith('/git '):
+            os.makedirs("workspace", exist_ok=True)
             parts = command.split(" ", 2)
             action = parts[1] if len(parts) > 1 else ""
 

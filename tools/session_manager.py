@@ -1,4 +1,5 @@
 # src/chatbot/session_manager.py
+import os
 import json
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -112,10 +113,16 @@ class SessionManager:
         Args:
             filename: Nombre del archivo. Si no se proporciona, se genera automáticamente
         """
+        # Carpeta destino
+        save_dir = "sessionsInfo"
+        os.makedirs(save_dir, exist_ok=True)  # Crea la carpeta si no existe
+
         if not filename:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"session_{timestamp}.json"
         
+        filepath = os.path.join(save_dir, filename) # guardar en la carpeta
+
         session_data = {
             "session_info": {
                 "start_time": self.session_start.isoformat(),
@@ -127,9 +134,9 @@ class SessionManager:
         }
         
         try:
-            with open(filename, 'w', encoding='utf-8') as f:
+            with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(session_data, f, indent=2, ensure_ascii=False)
-            print(f"💾 Sesión guardada en: {filename}")
+            print(f"💾 Sesión guardada en: {filepath}")
         except Exception as e:
             print(f"❌ Error guardando sesión: {str(e)}")
     
