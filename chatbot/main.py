@@ -10,6 +10,7 @@ from ollama_client import OllamaClient
 from session_manager import SessionManager
 from logger import InteractionLogger
 from sleep_coach_client import SleepCoachClient
+from remote_client import RemoteSleepQuotesClient
 
 from mcp_servers.mcp_files import create_file
 from mcp_servers.mcp_git import git_init, git_add, git_commit
@@ -28,6 +29,11 @@ class MCPChatbot:
             # Cliente Sleep Coach
             self.sleep_coach = SleepCoachClient()
             self.sleep_coach_active = False
+
+            # Cliente remoto de consejos
+            self.remote_quotes = RemoteSleepQuotesClient()
+            self.remote_quotes_active = False
+
             
             print("🤖 Inicializando chatbot MCP con Ollama...")
             print("✅ Conexión con Ollama establecida")
@@ -80,8 +86,11 @@ class MCPChatbot:
         """
         command = command.lower().strip()
         
-        if command.startswith("/sleep"):
+        if command.startswith("/sleep"): # Servidor local propio
             return await self.handle_sleep_command(command)
+        
+        elif command.startswith("/quotes"): # Servidor remoto
+            return await self.handle_quotes_command(command)
 
         elif command == '/help':
             self.show_welcome_message()
@@ -163,6 +172,52 @@ class MCPChatbot:
 
         return False
     
+    async def handle_quotes_command(self, command: str) -> bool:
+        """Maneja comandos del servidor remoto de citas inspiracionales"""
+        parts = command.split(" ", 2)
+
+        if len(parts) < 2 or parts[1] == "help":
+            self.show_quotes_help()
+            return True
+
+        action = parts[1]
+
+        # Iniciar conexión si no está activa
+        if not self.remote_quotes_active:
+            async with self.remote_quotes as client:
+                if self.remote_quotes.is_connected:
+                    self.remote_quotes_active = True
+                else:
+                    print("❌ No se pudo conectar al servidor de citas")
+                    return True
+
+        try:
+            if action == "get":
+                result = await self.remote_quotes.get_inspirational_quote(time_based=True)
+
+            elif action == "tip":
+                result = await self.remote_quotes.get_sleep_hygiene_tip()
+
+            elif action == "search":
+                if len(parts) < 3:
+                    print("❌ Uso: /quotes search <palabra>")
+                    return True
+                query = parts[2]
+                result = await self.remote_quotes.search_quotes(query)
+
+            elif action == "wisdom":
+                result = await self.remote_quotes.get_daily_wisdom()
+
+            else:
+                print(f"❌ Acción desconocida: {action}")
+                self.show_quotes_help()
+
+        except Exception as e:
+            print(f"❌ Error procesando comando quotes: {str(e)}")
+
+        return True
+
+
     async def handle_sleep_command(self, command: str) -> bool:
         """Maneja comandos del Sleep Coach"""
         parts = command.split(" ", 2)
