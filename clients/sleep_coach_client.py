@@ -1,6 +1,7 @@
 import asyncio
 import json
 import subprocess
+from pathlib import Path
 import sys
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -16,12 +17,11 @@ class SleepCoachClient:
     async def start_server(self):
         """Inicia el servidor Sleep Coach"""
         try:
-            server_path = "C:/Users/Fabi/Documents/U/GitHub/SleepCoachServer/sleep_coach.py"
+            server_path = Path(__file__).parent.parent.parent / "servidores locales mcp" / "SleepCoachServer" / "sleep_coach.py"
             
             # Asegurarse de que el archivo existe
-            import os
-            if not os.path.exists(server_path):
-                print(f"❌ Archivo no encontrado: {server_path}")
+            if not server_path.exists():
+                print(f"❌ Servidor no encontrado: {server_path}")
                 return False
             
             print("🚀 Iniciando Sleep Coach Server...")

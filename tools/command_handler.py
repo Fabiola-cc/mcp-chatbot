@@ -47,10 +47,12 @@ class CommandHandler:
 
         try:
             if action == "get":
-                result = await self.remote_quotes.get_inspirational_quote(time_based=True)
+                result = await self.remote_quotes.get_inspirational_quote()
+                print(result)
 
             elif action == "tip":
                 result = await self.remote_quotes.get_sleep_hygiene_tip()
+                print(result)
 
             elif action == "search":
                 if len(parts) < 3:
@@ -58,9 +60,11 @@ class CommandHandler:
                     return True
                 query = parts[2]
                 result = await self.remote_quotes.search_quotes(query)
+                print(result)
 
             elif action == "wisdom":
-                result = await self.remote_quotes.get_daily_wisdom()
+                result = await self.remote_quotes.get_wisdom(False)
+                print(result)
 
             else:
                 print(f"❌ Acción desconocida: {action}")
