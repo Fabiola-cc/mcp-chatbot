@@ -3,11 +3,9 @@ import httpx
 import json
 from typing import Optional
 
-SERVER_URL = "https://mcpremoteserver-production.up.railway.app"
-
-class MCPClient:
-    def __init__(self, server_url: str):
-        self.server_url = server_url
+class RemoteSleepQuotesClient:
+    def __init__(self):
+        self.server_url = "https://mcpremoteserver-production.up.railway.app"
     
     async def call_method(self, method: str, params: dict = None):
         """Hace una llamada al endpoint MCP remoto"""
@@ -34,29 +32,10 @@ class MCPClient:
     
     async def get_sleep_hygiene_tip(self):
         return await self.call_method("get_sleep_hygiene_tip")
-        
-    async def test_connection(self) -> bool:
-        """Prueba conexión con el servidor remoto"""
-        url = "https://mcpremoteserver-production.up.railway.app"
-        try:
-            async with httpx.AsyncClient() as client:
-                response = client.get(f"{url}/health", timeout=5)
-                if response.status_code == 200:
-                    data = await response.json()
-                    if data.get("status") == "healthy":
-                        self.server_url = url
-                        self.is_connected = True
-                        print(f"✅ Conectado a servidor remoto: {url}")
-                        return True
-        except Exception as e:
-            print(f"⚠️ No se pudo conectar a {url}: {str(e)}")
-        
-        self.is_connected = False
-        return False
-
+    
     async def health_check(self):
         async with httpx.AsyncClient() as client:
-            r = await client.get(f"{SERVER_URL}/health")
+            r = await client.get(f"{self.server_url}/health")
             r.raise_for_status()
             return r.json()
 
@@ -70,33 +49,33 @@ class MCPClient:
             params["time_based"] = "true"
 
         async with httpx.AsyncClient() as client:
-            r = await client.get(f"{SERVER_URL}/api/quote", params=params)
+            r = await client.get(f"{self.server_url}/api/quote", params=params)
             r.raise_for_status()
             return r.json()
 
     async def get_tip(self):
         async with httpx.AsyncClient() as client:
-            r = await client.get(f"{SERVER_URL}/api/tip")
+            r = await client.get(f"{self.server_url}/api/tip")
             r.raise_for_status()
             return r.json()
 
     async def search_quotes(self, query: str, limit: int = 5):
         params = {"limit": limit}
         async with httpx.AsyncClient() as client:
-            r = await client.get(f"{SERVER_URL}/api/search/{query}", params=params)
+            r = await client.get(f"{self.server_url}/api/search/{query}", params=params)
             r.raise_for_status()
             return r.json()
 
     async def get_wisdom(self, include_tip: bool = True):
         params = {"include_tip": str(include_tip).lower()}
         async with httpx.AsyncClient() as client:
-            r = await client.get(f"{SERVER_URL}/api/wisdom", params=params)
+            r = await client.get(f"{self.server_url}/api/wisdom", params=params)
             r.raise_for_status()
             return r.json()
 
 # Ejemplo de uso
 async def main():
-    client = MCPClient(SERVER_URL)
+    client = RemoteSleepQuotesClient()
 
     print("CHECK")
     verify = await client.health_check()

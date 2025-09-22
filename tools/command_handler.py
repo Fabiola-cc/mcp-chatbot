@@ -38,12 +38,14 @@ class CommandHandler:
 
         # Iniciar conexión si no está activa
         if not self.remote_quotes_active:
-            async with self.remote_quotes as client:
-                if self.remote_quotes.is_connected:
-                    self.remote_quotes_active = True
-                else:
-                    print("❌ No se pudo conectar al servidor de citas")
-                    return True
+            client = RemoteSleepQuotesClient()
+            response = await client.health_check()
+
+            if response["status"] == "healthy":
+                self.remote_quotes_active = True
+            else:
+                print("❌ No se pudo conectar al servidor de citas")
+                return True
 
         try:
             if action == "get":
