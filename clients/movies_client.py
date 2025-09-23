@@ -29,7 +29,7 @@ class MoviesClient:
             return True
             
         try:
-            print("🎬 Iniciando Movies MCP Server persistente...")
+            print("🎬 Iniciando Movies MCP Server...")
             
             # Verificar que el archivo del servidor existe
             if not self.server_path.exists():
@@ -57,7 +57,7 @@ class MoviesClient:
                 return False
                 
         except Exception as e:
-            print(f"❌ Error iniciando servidor persistente: {str(e)}")
+            print(f"❌ Error iniciando servidor: {str(e)}")
             await self._cleanup()
             return False
 
@@ -131,7 +131,7 @@ class MoviesClient:
                 return json.loads(line_str)
                 
         except asyncio.TimeoutError:
-            print("⏰ Timeout leyendo respuesta del servidor")
+            print("Timeout leyendo respuesta del servidor")
         except json.JSONDecodeError as e:
             print(f"❌ Error parseando JSON: {e}")
         except Exception as e:
@@ -139,14 +139,164 @@ class MoviesClient:
             
         return None
 
+    def _format_movie_response(self, raw_response: str) -> str:
+        """Formatea la respuesta de películas de manera legible"""
+        try:
+            # Intentar parsear como JSON
+            data = json.loads(raw_response)
+            
+            # Si es una lista de películas
+            if isinstance(data, list):
+                return self._format_movie_list(data)
+            
+            # Si es una película individual
+            elif isinstance(data, dict) and "title" in data:
+                return self._format_single_movie(data)
+            
+            # Si es un resultado de herramienta específica
+            elif isinstance(data, dict):
+                return self._format_tool_result(data)
+            
+            else:
+                return f"📋 Respuesta: {raw_response}"
+                
+        except json.JSONDecodeError:
+            # Si no es JSON válido, devolver tal como está
+            return f"📋 Respuesta: {raw_response}"
+    
+    def _format_single_movie(self, movie: Dict) -> str:
+        """Formatea una película individual"""
+        title = movie.get("title", "Título desconocido")
+        year = movie.get("release_year", "N/A")
+        rating = movie.get("vote_average", "N/A")
+        runtime = movie.get("runtime", "N/A")
+        overview = movie.get("overview", "Sin descripción")
+        genres = movie.get("genres", [])
+        imdb_id = movie.get("imdb_id", "")
+        
+        # Truncar overview si es muy largo
+        if len(overview) > 200:
+            overview = overview[:197] + "..."
+        
+        # Formatear géneros
+        genres_str = ", ".join(genres) if genres else "N/A"
+        
+        formatted = f"""
+ **{title}** ({year})
+ Calificación: {rating}/10
+ Duración: {runtime} min
+ Géneros: {genres_str}
+ Sinopsis: {overview}"""
+        
+        if imdb_id:
+            formatted += f"\n IMDb: https://www.imdb.com/title/{imdb_id}"
+        
+        return formatted
+    
+    def _format_movie_list(self, movies: List[Dict]) -> str:
+        """Formatea una lista de películas"""
+        if not movies:
+            return " No se encontraron películas"
+        
+        formatted = f"**Encontradas {len(movies)} películas:**\n"
+        formatted += "=" * 50 + "\n"
+        
+        for i, movie in enumerate(movies, 1):
+            title = movie.get("title", "Título desconocido")
+            year = movie.get("release_year", "N/A")
+            rating = movie.get("vote_average", "N/A")
+            genres = movie.get("genres", [])
+            overview = movie.get("overview", "")
+            
+            # Truncar overview
+            if overview and len(overview) > 100:
+                overview = overview[:97] + "..."
+            
+            genres_str = ", ".join(genres[:3]) if genres else "N/A"  # Max 3 géneros
+            
+            formatted += f"""
+{i}.  **{title}** ({year})
+    {rating}/10 |  {genres_str}
+    {overview}
+"""
+        
+        return formatted
+    
+    def _format_tool_result(self, data: Dict) -> str:
+        """Formatea resultados de herramientas específicas"""
+        # Si contiene información de playlist
+        if "total_runtime" in data and "movies" in data:
+            return self._format_playlist(data)
+        
+        # Si es información detallada de actor
+        elif "actor" in data and "movies" in data:
+            return self._format_actor_filmography(data)
+        
+        # Si es resultado de recomendaciones
+        elif "recommendations" in data:
+            return self._format_movie_list(data["recommendations"])
+        
+        # Formato genérico para otros casos
+        else:
+            return json.dumps(data, indent=2, ensure_ascii=False)
+    
+    def _format_playlist(self, playlist: Dict) -> str:
+        """Formatea una playlist de películas"""
+        total_runtime = playlist.get("total_runtime", 0)
+        movies = playlist.get("movies", [])
+        target = playlist.get("target_minutes", 0)
+        
+        hours = total_runtime // 60
+        minutes = total_runtime % 60
+        
+        formatted = f"""
+ **PLAYLIST DE PELÍCULAS**
+ Objetivo: {target} min | ⏱ Total: {hours}h {minutes}m
+ {len(movies)} películas seleccionadas
+
+{"=" * 50}
+"""
+        
+        for i, movie in enumerate(movies, 1):
+            title = movie.get("title", "Título desconocido")
+            runtime = movie.get("runtime", "N/A")
+            rating = movie.get("vote_average", "N/A")
+            year = movie.get("release_year", "N/A")
+            
+            formatted += f"{i}. 🎬 {title} ({year}) - {runtime}min ⭐{rating}/10\n"
+        
+        return formatted
+    
+    def _format_actor_filmography(self, data: Dict) -> str:
+        """Formatea la filmografía de un actor"""
+        actor = data.get("actor", "Actor desconocido")
+        movies = data.get("movies", [])
+        
+        formatted = f"""
+ **FILMOGRAFÍA DE {actor.upper()}**
+ {len(movies)} películas encontradas
+
+{"=" * 50}
+"""
+        
+        for i, movie in enumerate(movies, 1):
+            title = movie.get("title", "Título desconocido")
+            year = movie.get("release_year", "N/A")
+            rating = movie.get("vote_average", "N/A")
+            role = movie.get("character", movie.get("role", "N/A"))
+            
+            formatted += f"{i}. 🎬 {title} ({year}) ⭐{rating}/10\n"
+            if role != "N/A":
+                formatted += f"   👤 Personaje: {role}\n"
+        
+        return formatted
+
     async def call_tool(self, tool_name: str, params: Dict = None) -> str:
         """Llama a una herramienta usando el servidor persistente"""
         if not self.is_active or not self._initialized:
             return "❌ Servidor no inicializado. Use 'await start_server()' primero."
             
         try:
-            print(f"🔧 Llamando {tool_name} con parámetros: {params}")
-            
             # Preparar argumentos según el tipo de herramienta
             if tool_name == "ping_tool":
                 arguments = {}
@@ -183,15 +333,18 @@ class MoviesClient:
                     if isinstance(content, list) and len(content) > 0:
                         first_content = content[0]
                         if isinstance(first_content, dict) and 'text' in first_content:
-                            return first_content['text']
+                            # Aplicar formateo aquí
+                            return self._format_movie_response(first_content['text'])
                         else:
-                            return str(first_content)
+                            return self._format_movie_response(str(first_content))
+                    else:
+                        return "No existe esta información en la base de datos"
                 
                 # Si es directamente el resultado
                 if isinstance(result, (list, dict)):
-                    return json.dumps(result, indent=2, ensure_ascii=False)
+                    return self._format_movie_response(json.dumps(result, ensure_ascii=False))
                 else:
-                    return str(result)
+                    return self._format_movie_response(str(result))
                     
             elif 'error' in response:
                 error = response['error']
@@ -226,10 +379,11 @@ class MoviesClient:
             finally:
                 self.server_process = None
 
-    # Métodos de conveniencia
+    # Métodos de conveniencia con mejor documentación
     async def test_ping(self) -> str:
         """Test de ping"""
-        return await self.call_tool("ping_tool")
+        result = await self.call_tool("ping_tool")
+        return f"🏓 Ping: {result}"
 
     async def search_movies(self, query: str, limit: int = 10) -> str:
         """Busca películas por título"""
@@ -307,7 +461,7 @@ class MoviesClient:
     async def stop_server(self):
         """Para el servidor"""
         await self._cleanup()
-        print("🛑 Movies Server persistente desconectado")
+        print("🛑 Movies Server desconectado")
 
     def stop_client(self):
         """Método síncrono para cerrar"""
@@ -320,14 +474,14 @@ class MoviesClient:
             pass
 
 
-# Función de prueba
+# Función de prueba con formato mejorado
 async def test_persistent_client():
-    """Prueba el cliente persistente"""
+    """Prueba el cliente persistente con formato mejorado"""
     client = MoviesClient()
     
     try:
-        print("🧪 TESTING MOVIES CLIENT PERSISTENTE")
-        print("=" * 50)
+        print("🧪 TESTING MOVIES CLIENT CON FORMATO MEJORADO")
+        print("=" * 60)
         
         if not await client.start_server():
             print("❌ No se pudo iniciar el servidor persistente")
@@ -338,23 +492,38 @@ async def test_persistent_client():
         result = await client.test_ping()
         print(f"📋 Resultado: {result}")
         
-        # Test búsqueda
-        print("\n📌 Test 2: Búsqueda Batman")
+        # Test búsqueda - ahora con formato mejorado
+        print("\n📌 Test 2: Búsqueda Batman (Formato Mejorado)")
         result = await client.search_movies("batman", 3)
-        print(f"📋 Resultado: {result[:400]}...")
+        print("📋 Resultado:")
+        print(result)
         
         # Test otra búsqueda para verificar persistencia
-        print("\n📌 Test 3: Búsqueda Matrix")
+        print("\n📌 Test 3: Búsqueda Matrix (Formato Mejorado)")
         result = await client.search_movies("matrix", 2)
-        print(f"📋 Resultado: {result[:400]}...")
+        print("📋 Resultado:")
+        print(result)
         
         # Test recomendaciones
-        print("\n📌 Test 4: Recomendaciones")
+        print("\n📌 Test 4: Recomendaciones de Acción (Formato Mejorado)")
         prefs = {"genres": ["Action"], "min_rating": 8.0}
         result = await client.get_recommendations(prefs)
-        print(f"📋 Resultado: {result[:400]}...")
+        print("📋 Resultado:")
+        print(result)
         
-        print("\n✅ Todos los tests completados exitosamente")
+        # Test filmografía de actor
+        print("\n📌 Test 5: Filmografía de Leonardo DiCaprio")
+        result = await client.get_actor_filmography("Leonardo DiCaprio", 5)
+        print("📋 Resultado:")
+        print(result)
+        
+        # Test playlist
+        print("\n📌 Test 6: Crear Playlist de 4 horas")
+        result = await client.create_playlist(480, {"genres": ["Drama","Thriller"], "prefer_high_rating": True})
+        print("📋 Resultado:")
+        print(result)
+        
+        print("\n✅ Todos los tests completados exitosamente con formato mejorado!")
         
     except Exception as e:
         print(f"❌ Error en tests: {str(e)}")

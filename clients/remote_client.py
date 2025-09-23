@@ -1,7 +1,7 @@
 import asyncio
 import httpx
 import json
-from typing import Optional
+from typing import Any, Dict, Optional
 
 class RemoteSleepQuotesClient:
     def __init__(self):
@@ -20,6 +20,74 @@ class RemoteSleepQuotesClient:
                 return response.json()
             else:
                 raise Exception(f"Error {response.status_code}: {response.text}")
+            
+    def _format_wisdom_output(self, wisdom_data: Dict[Any, Any]) -> str:
+        """Formatea la sabiduría diaria"""
+        output = [self._format_quote_output(wisdom_data, "SABIDURIA DIARIA")]
+        
+        if "tip" in wisdom_data:
+            tip = wisdom_data["tip"]
+            output.extend([
+                "\nCONSEJO ADICIONAL:",
+                "----------------",
+                f'"{tip.get("quote", "")}"',
+                f"   - {tip.get('author', 'Sleep Expert')}"
+            ])
+        
+        return "\n".join(output)
+            
+    def _format_quote_output(self, quote_data: Dict[Any, Any], title: str = "CITA") -> str:
+        """Formatea una cita de manera legible"""
+        if "result" in quote_data:
+            quote_info = quote_data["result"]
+        elif "daily_quote" in quote_data:
+            quote_info = quote_data["daily_quote"]
+        else:
+            quote_info = quote_data
+        
+        output = [
+            f"\n{title}:",
+            "-" * (len(title) + 1),
+            f'"{quote_info.get("quote", "")}"',
+            f"   - {quote_info.get('author', 'Autor desconocido')}",
+        ]
+        
+        # Agregar información adicional si está disponible
+        if quote_info.get("category"):
+            output.append(f"   Categoria: {quote_info['category']}")
+        
+        if quote_info.get("mood"):
+            output.append(f"   Estado de animo: {quote_info['mood']}")
+        
+        if quote_info.get("time_of_day"):
+            output.append(f"   Momento del dia: {quote_info['time_of_day']}")
+        
+        return "\n".join(output)
+            
+    def _format_search_results(self, search_data: Dict[Any, Any]) -> str:
+        """Formatea los resultados de búsqueda"""
+        results = search_data.get("results", [])
+        query = search_data.get("query", "")
+        
+        if not results:
+            return f"\nNo se encontraron resultados para: '{query}'"
+        
+        output = [
+            f"\nRESULTADOS DE BUSQUEDA PARA: '{query}'",
+            "=" * (len(query) + 30),
+            f"Encontradas {len(results)} cita(s):\n"
+        ]
+        
+        for i, quote in enumerate(results, 1):
+            output.extend([
+                f"{i}. \"{quote.get('quote', '')}\"",
+                f"    - {quote.get('author', 'Autor desconocido')}",
+                f"    Categoria: {quote.get('category', 'N/A')} | "
+                f"Estado: {quote.get('mood', 'N/A')}",
+                ""
+            ])
+        
+        return "\n".join(output)
     
     async def get_inspirational_quote(self, category=None, mood=None, time_based=False):
         params = {}

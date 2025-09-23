@@ -50,11 +50,11 @@ class CommandHandler:
         try:
             if action == "get":
                 result = await self.remote_quotes.get_inspirational_quote()
-                print(result)
+                print(self.remote_quotes._format_quote_output(result, "CITA INSPIRACIONAL"))
 
             elif action == "tip":
                 result = await self.remote_quotes.get_sleep_hygiene_tip()
-                print(result)
+                print(self.remote_quotes._format_quote_output(result, "CONSEJO DE HIGIENE DEL SUEÑO"))
 
             elif action == "search":
                 if len(parts) < 3:
@@ -62,11 +62,11 @@ class CommandHandler:
                     return True
                 query = parts[2]
                 result = await self.remote_quotes.search_quotes(query)
-                print(result)
+                print(self.remote_quotes._format_search_results(result))
 
             elif action == "wisdom":
                 result = await self.remote_quotes.get_wisdom(False)
-                print(result)
+                print(self.remote_quotes._format_wisdom_output(result))
 
             else:
                 print(f"❌ Acción desconocida: {action}")

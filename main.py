@@ -43,12 +43,12 @@ class MCPChatbot:
     def show_welcome_message(self):
         """Muestra mensaje de bienvenida y comandos disponibles"""
         print("\n" + "="*60)
-        print("🤖 CHATBOT MCP LOCAL - ¡Bienvenido!")
-        print("🏠 Usando modelo local con Ollama (100% privado)")
+        print("CHATBOT MCP LOCAL - ¡Bienvenido!")
+        print("Usando modelo local con Ollama (100% privado)")
         print("="*60)
         print("💬 Puedes hacer preguntas normales o usar comandos especiales:")
         print()
-        print("📋 COMANDOS ESPECIALES:")
+        print("COMANDOS ESPECIALES:")
         print("  /fs create <file> <contenido>")
         print("  /git init | /git add | /git add | /git commit \"msg\"")
         print("  /sleep help  - Conoce el recomendador de rutinas de sueño")
@@ -104,15 +104,15 @@ class MCPChatbot:
             mcp_stats = self.logger.get_mcp_stats()
             
             print(f"\n📊 ESTADÍSTICAS DE SESIÓN:")
-            print(f"  💬 Total mensajes: {stats['total_messages']}")
-            print(f"  👤 Mensajes usuario: {stats['user_messages']}")
-            print(f"  🤖 Mensajes chatbot: {stats['assistant_messages']}")
-            print(f"  ⏱️  Duración: {stats['session_duration']}")
-            print(f"  🧠 Mensajes en contexto: {stats['messages_in_context']}")
-            print(f"\n🔧 ESTADÍSTICAS MCP:")
-            print(f"  📡 Interacciones totales: {mcp_stats['total_interactions']}")
-            print(f"  ✅ Tasa de éxito: {mcp_stats['success_rate']:.1f}%")
-            print(f"  🖥️  Servidores usados: {', '.join(mcp_stats['servers_used']) if mcp_stats['servers_used'] else 'Ninguno'}")
+            print(f"  Total mensajes: {stats['total_messages']}")
+            print(f"  Mensajes usuario: {stats['user_messages']}")
+            print(f"  Mensajes chatbot: {stats['assistant_messages']}")
+            print(f"   Duración: {stats['session_duration']}")
+            print(f"  Mensajes en contexto: {stats['messages_in_context']}")
+            print(f"\nESTADÍSTICAS MCP:")
+            print(f"  Interacciones totales: {mcp_stats['total_interactions']}")
+            print(f"  Tasa de éxito: {mcp_stats['success_rate']:.1f}%")
+            print(f"  Servidores usados: {', '.join(mcp_stats['servers_used']) if mcp_stats['servers_used'] else 'Ninguno'}")
             
             return True
             
@@ -268,8 +268,8 @@ class MCPChatbot:
 
             # Guardar sesión al salir
             self.session.save_session(f"{self.session_id}.json")
-            print("💾 Sesión guardada automáticamente")
-            print("👋 ¡Hasta luego!")
+            print("Sesión guardada automáticamente")
+            print("¡Hasta luego!")
 
 
 if __name__ == "__main__":
