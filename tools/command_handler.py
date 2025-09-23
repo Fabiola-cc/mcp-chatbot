@@ -1,6 +1,7 @@
 import sys
 from typing import Dict
 
+from clients.kitchen_client import KitchenCoachClient
 from clients.sleep_coach_client import SleepCoachClient
 from clients.remote_client import RemoteSleepQuotesClient
 from clients.movies_client import MoviesClient
@@ -17,6 +18,9 @@ class CommandHandler:
             # Clientes para servicios externos
             self.movies_client = MoviesClient()
             self.movies_active = False
+
+            self.kitchen_client = KitchenCoachClient()
+            self.kitchen_active = False
 
             # Cliente remoto de consejos
             self.remote_quotes = RemoteSleepQuotesClient()
@@ -450,3 +454,187 @@ class CommandHandler:
             "year_range": year_range or "2010-2023",
             "min_rating": float(rating) if rating.isdigit() else 7.0
         }
+    
+    async def handle_kitchen_command(self, command: str) -> bool:
+        """Maneja comandos relacionados con Kitchen Coach"""
+        parts = command.split(" ", 2)
+        
+        if len(parts) < 2:
+            self._show_kitchen_help()
+            return True
+        
+        action = parts[1].lower()
+    
+        if not self.kitchen_active:
+            print("🍳 Iniciando Kitchen Coach...")
+            self.kitchen_coach_client = KitchenCoachClient()
+            if await self.kitchen_coach_client.start_server():
+                self.kitchen_active = True
+                print("✅ Kitchen Coach listo para recomendaciones culinarias")
+            else:
+                print("❌ No se pudo iniciar Kitchen Coach")
+        
+        if action == "help":
+            self._show_kitchen_help()
+            return True
+
+        elif action == "stop":
+            if self.kitchen_active and self.kitchen_coach_client:
+                await self.kitchen_coach_client.stop_server()
+                self.kitchen_active = False
+                self.kitchen_coach_client = None
+                print("🛑 Kitchen Coach detenido")
+            else:
+                print("ℹ️ Kitchen Coach no está activo")
+            return True
+        
+        elif action == "tools":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            tools = await self.kitchen_coach_client.list_tools()
+            print(f"\n🔧 HERRAMIENTAS KITCHEN COACH ({len(tools)} disponibles):")
+            for tool in tools:
+                print(f"  • {tool['name']}: {tool['description']}")
+            return True
+        
+        elif action == "mood":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            if len(parts) < 3:
+                print("❌ Uso: /kitchen mood <estado_animo> [temporada]")
+                print("Estados de ánimo: happy, excited, tender, scared, angry, sad")
+                print("Temporadas: spring, summer, autumn, winter")
+                return True
+            
+            mood_parts = parts[2].split()
+            mood = mood_parts[0]
+            season = mood_parts[1] if len(mood_parts) > 1 else None
+            
+            result = await self.kitchen_coach_client.recommend_by_mood_and_season(mood, season)
+            print(f"🍽️ RECOMENDACIÓN POR ESTADO DE ÁNIMO:\n{result}")
+            return True
+        
+        elif action == "diet":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            if len(parts) < 3:
+                print("❌ Uso: /kitchen diet <tipo_dieta> [max_calorias]")
+                print("Tipos de dieta: vegan, keto, mediterranean, paleo, dash")
+                return True
+            
+            diet_parts = parts[2].split()
+            diet = diet_parts[0]
+            max_calories = int(diet_parts[1]) if len(diet_parts) > 1 and diet_parts[1].isdigit() else None
+            
+            result = await self.kitchen_coach_client.suggest_recipe_by_diet(diet, max_calories)
+            print(f"🥗 RECETAS PARA DIETA {diet.upper()}:\n{result}")
+            return True
+        
+        elif action == "substitute":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            if len(parts) < 3:
+                print("❌ Uso: /kitchen substitute <ingrediente>")
+                return True
+            
+            ingredient = parts[2]
+            result = await self.kitchen_coach_client.suggest_ingredient_substitution(ingredient)
+            print(f"🔄 SUSTITUTOS PARA '{ingredient}':\n{result}")
+            return True
+        
+        elif action == "utensils":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            if len(parts) < 3:
+                print("❌ Uso: /kitchen utensils <nombre_receta>")
+                return True
+            
+            recipe_name = parts[2]
+            result = await self.kitchen_coach_client.suggest_utensils_for_recipe(recipe_name)
+            print(f"🔪 UTENSILIOS PARA '{recipe_name}':\n{result}")
+            return True
+        
+        elif action == "ingredients":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            if len(parts) < 3:
+                print("❌ Uso: /kitchen ingredients <ingrediente1,ingrediente2,...>")
+                return True
+            
+            ingredients_str = parts[2]
+            ingredients = [ing.strip() for ing in ingredients_str.split(",")]
+            
+            result = await self.kitchen_coach_client.get_recipes_by_ingredients(ingredients)
+            print(f"🍲 RECETAS CON {', '.join(ingredients)}:\n{result}")
+            return True
+        
+        elif action == "search":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            # Ejemplo de búsqueda nutricional
+            result = await self.kitchen_coach_client.search_foods(min_protein=10, max_calories=200)
+            print(f"🔍 BÚSQUEDA DE ALIMENTOS (min 10g proteína, max 200 cal):\n{result}")
+            return True
+        
+        elif action == "food":
+            if not self.kitchen_active:
+                print("❌ Kitchen Coach no está activo. Usa '/kitchen start' primero")
+                return True
+            
+            if len(parts) < 3:
+                print("❌ Uso: /kitchen food <nombre_alimento>")
+                return True
+            
+            food_name = parts[2]
+            result = await self.kitchen_coach_client.get_food_by_name(food_name)
+            print(f"🍎 INFORMACIÓN DE '{food_name}':\n{result}")
+            return True
+        
+        else:
+            print(f"❌ Acción desconocida: {action}")
+            self._show_kitchen_help()
+            return True
+
+    def _show_kitchen_help(self):
+        """Muestra ayuda para comandos Kitchen Coach"""
+        print("""
+🍳 KITCHEN COACH - Recomendador culinario inteligente
+====================================================
+
+COMANDOS DISPONIBLES:
+  /kitchen stop                     - Detener Kitchen Coach Server
+  /kitchen tools                    - Listar herramientas disponibles
+  /kitchen mood <estado> [temporada]- Recomendar por estado de ánimo
+  /kitchen diet <dieta> [max_cal]   - Recetas por tipo de dieta
+  /kitchen substitute <ingrediente> - Sustitutos para ingrediente
+  /kitchen utensils <receta>        - Utensilios necesarios
+  /kitchen ingredients <ing1,ing2>  - Recetas con ingredientes específicos
+  /kitchen search                   - Buscar alimentos (ejemplo nutricional)
+  /kitchen food <nombre>            - Información nutricional de alimento
+  /kitchen help                     - Mostrar esta ayuda
+
+ESTADOS DE ÁNIMO: happy, excited, tender, scared, angry, sad
+TEMPORADAS: spring, summer, autumn, winter
+DIETAS: vegan, keto, mediterranean, paleo, dash
+
+EJEMPLOS:
+  /kitchen mood happy summer
+  /kitchen diet vegan 500
+  /kitchen substitute "milk"
+  /kitchen ingredients "chicken,rice,vegetables"
+
+        """)

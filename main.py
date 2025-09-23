@@ -86,6 +86,9 @@ class MCPChatbot:
 
         elif command.startswith("/movies"): # Servidor externo
             return await self.command_handler.handle_movies_command(command)
+        
+        elif command.startswith("/kitchen"): # Servidor externo
+            return await self.command_handler.handle_kitchen_command(command)
 
         elif command == '/help':
             self.show_welcome_message()
