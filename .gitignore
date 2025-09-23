@@ -8,6 +8,7 @@
 logs
 sessionsInfo
 workspace
+demo_workspace
 
 __pycache__
 *.json

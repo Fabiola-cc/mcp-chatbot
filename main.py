@@ -13,8 +13,7 @@ from tools.session_manager import SessionManager
 from tools.logger import InteractionLogger
 from tools.command_handler import CommandHandler
 
-from mcp_servers.mcp_files import create_file
-from mcp_servers.mcp_git import git_init, git_add, git_commit
+from mcp_oficial.git_file_client import MCPClient
 
 class MCPChatbot:
     def __init__(self):
@@ -26,6 +25,9 @@ class MCPChatbot:
             self.session = SessionManager()
             self.logger = InteractionLogger()
             self.command_handler = CommandHandler()
+
+            self.git_file_client = MCPClient()
+            self.gf_active = False
 
             self.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
@@ -50,20 +52,21 @@ class MCPChatbot:
         print()
         print("COMANDOS ESPECIALES:")
         print("  /fs create <file> <contenido>")
-        print("  /git init | /git add | /git add | /git commit \"msg\"")
-        print("  /sleep help  - Conoce el recomendador de rutinas de sueño")
+        print("  /git init | /git add | /git commit \"msg\"")
+        print("  /sleep help   - Conoce el recomendador de rutinas de sueño")
         print("  /quotes help  - Consejero de sueño")
-        print("  /movies help - Recomendador de películas")
-        print("  /help        - Mostrar esta ayuda")
-        print("  /log         - Mostrar log de interacciones")
-        print("  /mcp         - Mostrar interacciones MCP")
-        print("  /stats       - Mostrar estadísticas de la sesión")
-        print("  /context     - Mostrar resumen del contexto actual")
-        print("  /clear       - Limpiar contexto de conversación")
-        print("  /save        - Guardar sesión actual")
-        print("  /quit        - Salir del chatbot")
+        print("  /movies help  - Recomendador de películas")
+        print("  /kitchen help - Recomendador de películas")
+        print("  /help         - Mostrar esta ayuda")
+        print("  /log          - Mostrar log de interacciones")
+        print("  /mcp          - Mostrar interacciones MCP")
+        print("  /stats        - Mostrar estadísticas de la sesión")
+        print("  /context      - Mostrar resumen del contexto actual")
+        print("  /clear        - Limpiar contexto de conversación")
+        print("  /save         - Guardar sesión actual")
+        print("  /quit         - Salir del chatbot")
         print()
-        print("🛌 Sleep Coach y 🎬 Movies Recomendator listos para recomendaciones personalizadas")
+        print("🛌 Sleep Coach, 👨‍🍳 Kitchen Coach y 🎬 Movies Recomendator listos para recomendaciones personalizadas")
         print("="*60)
     
     async def process_special_command(self, command: str) -> bool:
@@ -137,36 +140,132 @@ class MCPChatbot:
             return True
         
         elif command.startswith('/fs '):
+            if self.gf_active == False:
+                fs_success = await self.git_file_client.start_fs_server()
+                if not fs_success:
+                    print("❌ Error iniciando Filesystem server")
+                    return True
+                self.gf_active = True
+            
             # /fs create <filename> <contenido>
             parts = command.split(" ", 3)
             if len(parts) < 4 or parts[1] != "create":
                 print("❌ Uso: /fs create <filename> <contenido>")
                 return True
+            
             filename, content = parts[2], parts[3]
-            result = create_file(filename, content)
-            print(result)
+            result = await self.git_file_client.create_file(filename, content)
+            
+            if result and "isError" not in result:
+                print(f"✅ Archivo '{filename}' creado exitosamente")
+            else:
+                print(f"❌ Error creando archivo: {result}")
+            
             return True
 
         elif command.startswith('/git '):
-            os.makedirs("workspace", exist_ok=True)
-            parts = command.split(" ", 2)
-            action = parts[1] if len(parts) > 1 else ""
-
-            if action == "init":
-                print(git_init())
-                return True
-            elif action == "add":
-                print(git_add())
-                return True
-            elif action == "commit":
-                if len(parts) < 3:
-                    print("❌ Uso: /git commit \"mensaje\"")
+            if self.gf_active == False:
+                fs_success = await self.git_file_client.start_fs_server()
+                if not fs_success:
+                    print("❌ Error iniciando Filesystem server")
                     return True
-                message = parts[2].strip('"')
-                print(git_commit(message))
+                self.gf_active = True
+            
+            parts = command.split(" ", 4)  # Aumenté para manejar mensaje con espacios
+            action = parts[1] if len(parts) > 1 else ""
+            
+            if action == "init":
+                if len(parts) < 3:
+                    print("❌ Uso: /git init <nombre_repositorio>")
+                    return True
+                
+                repo_name = parts[2]
+                
+                # Crear repositorio con Git nativo
+                success = self.git_file_client.create_git_repo_native(repo_name)
+                if success:
+                    print(f"✅ Repositorio '{repo_name}' creado exitosamente")
+                    
+                    # Opcionalmente, iniciar Git MCP server si existe el repo
+                    try:
+                        await self.git_file_client.start_git_server_after_repo(repo_name)
+                        print(f"✅ Git MCP server iniciado para '{repo_name}'")
+                    except:
+                        print("⚠️ Git MCP server no disponible, usando solo Git nativo")
+                else:
+                    print(f"❌ Error creando repositorio '{repo_name}'")
+                
                 return True
+            
+            elif action == "commit":
+                if len(parts) < 5:
+                    print("❌ Uso: /git commit <repositorio> <archivo> \"mensaje\"")
+                    return True
+                
+                repo_name = parts[2]
+                file_path = parts[3]
+                commit_message = parts[4].strip('"')
+                
+                # Hacer commit con Git nativo
+                success = self.git_file_client.git_add_commit_native(
+                    repo_name, 
+                    [file_path], 
+                    commit_message
+                )
+                
+                if success:
+                    print(f"✅ Commit realizado en '{repo_name}': {commit_message}")
+                else:
+                    print(f"❌ Error en commit para '{repo_name}'")
+                
+                return True
+            
+            elif action == "status":
+                if len(parts) < 3:
+                    print("❌ Uso: /git status <repositorio>")
+                    return True
+                
+                repo_name = parts[2]
+                
+                # Intentar usar Git MCP si está disponible
+                if hasattr(self.git_file_client, 'git_process') and self.git_file_client.git_process:
+                    result = await self.git_file_client.git_status(repo_name)
+                    if result and "result" in result:
+                        content = result["result"]["content"][0]["text"]
+                        print(f"📊 Status de '{repo_name}':\n{content}")
+                    else:
+                        print(f"❌ Error obteniendo status de '{repo_name}'")
+                else:
+                    print("⚠️ Git MCP no disponible. Use: git status (comando nativo)")
+                
+                return True
+            
+            elif action == "log":
+                if len(parts) < 3:
+                    print("❌ Uso: /git log <repositorio>")
+                    return True
+                
+                repo_name = parts[2]
+                
+                # Intentar usar Git MCP si está disponible
+                if hasattr(self.git_file_client, 'git_process') and self.git_file_client.git_process:
+                    result = await self.git_file_client.git_log(repo_name)
+                    if result and "result" in result:
+                        content = result["result"]["content"][0]["text"]
+                        print(f"📜 Log de '{repo_name}':\n{content}")
+                    else:
+                        print(f"❌ Error obteniendo log de '{repo_name}'")
+                else:
+                    print("⚠️ Git MCP no disponible. Use: git log (comando nativo)")
+                
+                return True
+            
             else:
-                print("❌ Comandos disponibles: /git init | /git add | /git commit \"mensaje\"")
+                print("❌ Comandos disponibles:")
+                print("   /git init <repositorio>")
+                print("   /git commit <repositorio> <archivo> \"mensaje\"")
+                print("   /git status <repositorio>")
+                print("   /git log <repositorio>")
                 return True
 
         return False
