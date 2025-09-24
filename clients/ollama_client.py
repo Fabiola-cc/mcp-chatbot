@@ -66,7 +66,7 @@ class OllamaClient:
                         "top_k": 40
                     }
                 },
-                timeout=120  # timeout más largo para modelos locales
+                timeout=1200  # timeout más largo para modelos locales
             )
             
             response_time = time.time() - start_time
@@ -103,15 +103,7 @@ class OllamaClient:
             Prompt formateado para el modelo
         """
         # Prompt base que define el comportamiento
-        system_prompt = """Eres un asistente inteligente y útil. Respondes de manera:
-- Concisa pero completa
-- En español cuando el usuario escriba en español
-- Técnica cuando se requiera, pero accesible
-- Con ejemplos cuando sea útil
-
-Siempre mantén el contexto de la conversación."""
-        
-        prompt = system_prompt + "\n\n"
+        prompt = "\n"
         
         if history:
             # Incluir solo los últimos mensajes para no exceder el contexto

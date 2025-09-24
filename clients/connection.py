@@ -6,27 +6,26 @@ import sys
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-class SleepCoachClient:
-    """Cliente para interactuar con el Sleep Coach MCP Server"""
+class Client:
+    """Cliente para interactuar con el  MCP Server"""
     
     def __init__(self):
         self.server_process = None
         self.is_connected = False
         self.request_id = 1
     
-    async def start_server(self):
-        """Inicia el servidor Sleep Coach"""
+    async def start_server(self, server_name, *args: str):
+        """Inicia el servidor """
         try:
-            server_path = Path(__file__).parent.parent.parent / "servidores locales mcp" / "SleepCoachServer" / "sleep_coach.py"
-            
             # Asegurarse de que el archivo existe
-            if not server_path.exists():
-                print(f"❌ Servidor no encontrado: {server_path}")
-                return False
+            if server_name not in ("git", "filesystem", "remote"):
+                server_path = Path(args[-1])
+                if not server_path.exists():
+                    print(f"❌ Servidor no encontrado: {server_path}")
+                    return False
             
-            print("🚀 Iniciando Sleep Coach Server...")
             self.server_process = await asyncio.create_subprocess_exec(
-                sys.executable, server_path,
+                *args,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
@@ -42,19 +41,19 @@ class SleepCoachClient:
                 return False
             
             # Inicializar el servidor MCP
-            if await self._initialize_mcp():
+            if await self._initialize_mcp(server_name):
                 self.is_connected = True
-                print("✅ Sleep Coach Server conectado y listo")
+                print(f"✅ {server_name} Server conectado y listo")
                 return True
             else:
                 print("❌ Falló la inicialización del servidor MCP")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error iniciando Sleep Coach Server: {e}")
+            print(f"❌ Error iniciando  Server: {e}")
             return False
     
-    async def _initialize_mcp(self) -> bool:
+    async def _initialize_mcp(self, server_name) -> bool:
         """Inicializa la conexión MCP con el servidor"""
         try:
             # 1. Enviar mensaje de inicialización
@@ -71,7 +70,7 @@ class SleepCoachClient:
                         "sampling": {}
                     },
                     "clientInfo": {
-                        "name": "sleep-coach-client",
+                        "name": f"{server_name}-client",
                         "version": "1.0.0"
                     }
                 }
@@ -86,7 +85,6 @@ class SleepCoachClient:
             initialized_notification = {
                 "jsonrpc": "2.0",
                 "method": "notifications/initialized",
-                "params": {}
             }
             
             # Las notificaciones no esperan respuesta
@@ -101,27 +99,42 @@ class SleepCoachClient:
     async def _send_message(self, message: dict) -> dict:
         """Envía un mensaje y espera respuesta"""
         try:
-            message_str = json.dumps(message) + "\n"
-        
-            self.server_process.stdin.write(message_str.encode())
+            msg_str = json.dumps(message) + "\n"
+            
+            self.server_process.stdin.write(msg_str.encode())
             await self.server_process.stdin.drain()
+
+            # Leer múltiples líneas hasta encontrar la respuesta correcta
+            max_attempts = 5
+            for attempt in range(max_attempts):
+                line = await asyncio.wait_for(self.server_process.stdout.readline(), timeout=10.0)
+                if not line:
+                    print("❌ No se recibió respuesta")
+                    return None
+                    
+                response = json.loads(line.decode().strip())
+                
+                # Si es una solicitud del servidor (como roots/list), responder y continuar
+                if "method" in response and "id" in response:
+                    await self._handle_server_request(response)
+                    continue
+                    
+                # Si es la respuesta a nuestro mensaje (tiene el mismo ID)
+                if "id" in response and response["id"] == message.get("id"):
+                    return response
+                    
+                # Si es una respuesta sin ID específico pero tiene "result"
+                if "result" in response or "error" in response:
+                    return response
             
-            # Leer respuesta
-            response_line = await asyncio.wait_for(
-                self.server_process.stdout.readline(), 
-                timeout=5.0
-            )
-            
-            if not response_line:
-                print("❌ No se recibió respuesta del servidor")
-                return None
-            
-            response_str = response_line.decode().strip()
-            
-            return json.loads(response_str)
+            print(f"❌ No se encontró respuesta válida después de {max_attempts} intentos")
+            return None
             
         except asyncio.TimeoutError:
-            print("❌ Timeout esperando respuesta del servidor")
+            print("❌ Timeout esperando respuesta")
+            return None
+        except json.JSONDecodeError as e:
+            print(f"❌ Error decodificando JSON: {e}")
             return None
         except Exception as e:
             print(f"❌ Error enviando mensaje: {e}")
@@ -144,25 +157,48 @@ class SleepCoachClient:
         self.request_id += 1
         return request_id
     
+    async def _handle_server_request(self, request):
+        """Maneja solicitudes del servidor (como roots/list)"""
+        try:
+            if request.get("method") == "roots/list":
+                # Responder con la lista de roots permitidos
+                response = {
+                    "jsonrpc": "2.0",
+                    "id": request["id"],
+                    "result": {
+                        "roots": [
+                            {
+                                "uri": str(Path(__file__).parent),
+                                "name": "LLM_PROYECTO1"
+                            }
+                        ]
+                    }
+                }
+                
+                msg_str = json.dumps(response) + "\n"
+                self.server_process.stdin.write(msg_str.encode())
+                await self.server_process.stdin.drain()
+                
+        except Exception as e:
+            print(f"❌ Error manejando solicitud del servidor: {e}")
+        
     async def list_tools(self) -> List[Dict]:
         """Lista las herramientas disponibles en el servidor"""
         if not self.is_connected:
-            print("❌ Sleep Coach Server no está conectado")
+            print("❌  Server no está conectado")
             return []
         
         try:
             message = {
                 "jsonrpc": "2.0",
                 "id": self._get_request_id(),
-                "method": "tools/list",
-                "params": {}
+                "method": "tools/list"
             }
             
             response = await self._send_message(message)
             
             if response and "result" in response:
                 tools = response["result"]["tools"]
-                print(f"🔧 Herramientas disponibles: {[tool['name'] for tool in tools]}")
                 return tools
             else:
                 print(f"❌ Error listando herramientas: {response}")
@@ -175,7 +211,7 @@ class SleepCoachClient:
     async def call_tool(self, tool_name: str, arguments: dict) -> str:
         """Llama a una herramienta del servidor MCP"""
         if not self.is_connected:
-            return "❌ Sleep Coach Server no está conectado"
+            return "❌  Server no está conectado"
         
         try:
             message = {
@@ -203,20 +239,12 @@ class SleepCoachClient:
                 return "❌ Respuesta inesperada del servidor"
                 
         except Exception as e:
-            return f"❌ Error comunicándose con Sleep Coach: {str(e)}"
-
-    async def get_sleep_recommendations(self, sleep_data: str) -> str:
-        """Obtiene recomendaciones de sueño"""
-        return await self.call_tool("get_sleep_recommendations", {"sleep_data": sleep_data})
-    
-    async def analyze_sleep_pattern(self, sleep_log: str) -> str:
-        """Analiza patrones de sueño"""
-        return await self.call_tool("analyze_sleep_pattern", {"sleep_log": sleep_log})
+            return f"❌ Error comunicándose con : {str(e)}"
 
     async def stop_server(self):
         """Detiene el servidor"""
         if self.server_process and self.server_process.returncode is None:
-            print("🛑 Deteniendo Sleep Coach Server...")
+            print("🛑 Deteniendo  Server...")
             self.server_process.terminate()
             
             try:
@@ -227,40 +255,4 @@ class SleepCoachClient:
                 await self.server_process.wait()
             
             self.is_connected = False
-            print("✅ Sleep Coach Server detenido")
-
-# Función de prueba
-async def test_sleep_coach():
-    """Función para probar el cliente Sleep Coach"""
-    client = SleepCoachClient()
-    
-    try:
-        # Iniciar servidor
-        if await client.start_server():
-            print("✅ Servidor iniciado correctamente")
-            
-            # Listar herramientas
-            tools = await client.list_tools()
-            print(f"🔧 Herramientas disponibles: {len(tools)}")
-            
-            # Probar herramienta de recomendaciones
-            sleep_data = "Duermo 5 horas por noche, me despierto cansado"
-            recommendations = await client.get_sleep_recommendations(sleep_data)
-            print(f"💤 Recomendaciones: {recommendations}")
-            
-            # Probar análisis de patrones
-            sleep_log = "Lunes: 11pm-5am, Martes: 12am-6am, Miércoles: 1am-6am"
-            analysis = await client.analyze_sleep_pattern(sleep_log)
-            print(f"📊 Análisis: {analysis}")
-            
-        else:
-            print("❌ No se pudo iniciar el servidor")
-            
-    except Exception as e:
-        print(f"❌ Error en prueba: {e}")
-    finally:
-        await client.stop_server()
-
-# Ejecutar prueba si se ejecuta directamente
-if __name__ == "__main__":
-    asyncio.run(test_sleep_coach())
+            print("✅  Server detenido")

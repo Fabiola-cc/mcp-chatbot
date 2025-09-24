@@ -1,5 +1,7 @@
 # src/chatbot/main.py
+import json
 import os
+from pathlib import Path
 import sys
 import asyncio
 from datetime import datetime
@@ -8,12 +10,11 @@ from dotenv import load_dotenv
 from mcp import ClientSession
 
 from clients.ollama_client import OllamaClient
+from clients.connection import Client
 
 from tools.session_manager import SessionManager
 from tools.logger import InteractionLogger
-from tools.command_handler import CommandHandler
 
-from mcp_oficial.git_file_client import MCPClient
 
 class MCPChatbot:
     def __init__(self):
@@ -24,24 +25,122 @@ class MCPChatbot:
             self.ollama = OllamaClient()
             self.session = SessionManager()
             self.logger = InteractionLogger()
-            self.command_handler = CommandHandler()
-
-            self.git_file_client = MCPClient()
-            self.gf_active = False
 
             self.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+            self.clients = {
+                "git": Client(),
+                "files": Client(),
+                "sleep_coach": Client(),
+                "remote": Client(),
+                "beauty": Client(),
+                "videogames": Client()
+            }
             
-            print("🤖 Inicializando chatbot MCP con Ollama...")
+            print("Inicializando chatbot MCP con Ollama...")
             print("✅ Conexión con Ollama establecida")
                 
         except Exception as e:
             print(f"❌ Error inicializando chatbot: {str(e)}")
-            print("\n💡 Soluciones:")
+            print("\nSoluciones:")
             print("1. Verificar que Ollama esté instalado: curl -fsSL https://ollama.com/install.sh | sh")
             print("2. Iniciar Ollama: ollama serve")
             print("3. Descargar un modelo: ollama pull llama3.2:3b")
             sys.exit(1)
     
+    async def initialize_servers(self):
+        await self.clients["git"].start_server(
+            "git", sys.executable, "-m", "mcp_server_git", "--repository", str(Path(__file__).parent)
+        )
+        
+        await self.clients["files"].start_server(
+            "filesystem", r"C:\Program Files\nodejs\npx.cmd",
+            "-y", "@modelcontextprotocol/server-filesystem", str(Path(__file__).parent)
+        )
+
+        await self.clients["sleep_coach"].start_server(
+            "sleep_coach", sys.executable,
+            str(Path(__file__).parent.parent / "servidores locales mcp/SleepCoachServer/sleep_coach.py")
+        )
+
+        await self.clients["beauty"].start_server(
+            "beauty", sys.executable,
+            str(Path(__file__).parent.parent / "servidores locales mcp/beauty-palette-server-local/beauty_mcp_server_local.py")
+        )
+
+        await self.clients["videogames"].start_server(
+            "videogames", sys.executable,
+            str(Path(__file__).parent.parent / "servidores locales mcp/MCP_VIDEOGAMES_REC_INFO/server/mcp_server.py")
+        )
+        
+        return
+    
+    async def servers_with_llm(self):
+        # Obtener herramientas de cada servidor MCP
+        sleep_tools = await self.clients["sleep_coach"].list_tools()
+        git_tools = await self.clients["git"].list_tools()
+        files_tools = await self.clients["files"].list_tools()
+        beauty_tools = await self.clients["beauty"].list_tools()
+        videogames_tools = await self.clients["videogames"].list_tools()
+
+        # Construir contexto para el LLM
+        llm_context = f"""
+    Eres un asistente conectado a varios servidores MCP. 
+    Tienes acceso a las siguientes herramientas, agrupadas por servidor:
+
+    - Sleep Coach (sleep_coach):
+    {sleep_tools}
+
+    - Git (git):
+    {git_tools}
+
+    - Filesystem (files):
+    {files_tools}
+
+    Instrucciones importantes:
+    1. Analiza siempre el mensaje del usuario.
+    2. Si el mensaje requiere usar una herramienta de un servidor MCP, responde ÚNICAMENTE en JSON con este formato:
+    {{
+    "action": "call_tool",
+    "server": "<nombre_servidor>",   // uno de: "sleep_coach", "git", "files"
+    "tool": "<nombre_tool>",         // el nombre de la herramienta exacta
+    "arguments": {{ ... }}           // diccionario de argumentos
+    }}
+    3. Si el mensaje no requiere usar ninguna herramienta, responde con texto normal, de manera natural.
+    4. No combines respuesta en texto con el JSON. Es uno u otro.
+    5. Si no estás seguro de qué herramienta usar, responde en texto normal y pide más aclaración.
+
+    Ejemplo 1 (el usuario pide un consejo para dormir mejor):
+    {{
+    "action": "call_tool",
+    "server": "sleep_coach",
+    "tool": "get_quote",
+    "arguments": {{"category": "motivación"}}
+    }}
+
+    Ejemplo 2 (el usuario pide ver el contenido de un archivo README.md):
+    {{
+    "action": "call_tool",
+    "server": "files",
+    "tool": "fs/readFile",
+    "arguments": {{"path": "README.md"}}
+    }}
+
+    Ejemplo 3 (el usuario pregunta algo general sin usar tools):
+    "Claro, ¿quieres que te dé un resumen de los pasos a seguir?"
+    """
+        try:
+            print("ENVIANDO CONTEXTO")
+            # Enviar el contexto al LLM y registrar en la sesión
+            llm_response = self.ollama.send_message(llm_context)
+            print("CONTEXTO ENVIADO: " + llm_response)
+            self.session.add_message("user", llm_context)
+        except Exception as e:
+            print(f"❌ Error enviando contexto: {e}")
+
+        return
+
+
     def show_welcome_message(self):
         """Muestra mensaje de bienvenida y comandos disponibles"""
         print("\n" + "="*60)
@@ -51,12 +150,6 @@ class MCPChatbot:
         print("💬 Puedes hacer preguntas normales o usar comandos especiales:")
         print()
         print("COMANDOS ESPECIALES:")
-        print("  /fs create <file> <contenido>")
-        print("  /git init | /git add | /git commit \"msg\"")
-        print("  /sleep help   - Conoce el recomendador de rutinas de sueño")
-        print("  /quotes help  - Consejero de sueño")
-        print("  /movies help  - Recomendador de películas")
-        print("  /kitchen help - Recomendador de películas")
         print("  /help         - Mostrar esta ayuda")
         print("  /log          - Mostrar log de interacciones")
         print("  /mcp          - Mostrar interacciones MCP")
@@ -81,19 +174,7 @@ class MCPChatbot:
         """
         command = command.lower().strip()
         
-        if command.startswith("/sleep"): # Servidor local propio
-            return await self.command_handler.handle_sleep_command(command)
-        
-        elif command.startswith("/quotes"): # Servidor remoto
-            return await self.command_handler.handle_quotes_command(command)
-
-        elif command.startswith("/movies"): # Servidor externo
-            return await self.command_handler.handle_movies_command(command)
-        
-        elif command.startswith("/kitchen"): # Servidor externo
-            return await self.command_handler.handle_kitchen_command(command)
-
-        elif command == '/help':
+        if command == '/help':
             self.show_welcome_message()
             return True
             
@@ -139,138 +220,9 @@ class MCPChatbot:
         elif command == '/quit':
             return True
         
-        elif command.startswith('/fs '):
-            if self.gf_active == False:
-                fs_success = await self.git_file_client.start_fs_server()
-                if not fs_success:
-                    print("❌ Error iniciando Filesystem server")
-                    return True
-                self.gf_active = True
-            
-            # /fs create <filename> <contenido>
-            parts = command.split(" ", 3)
-            if len(parts) < 4 or parts[1] != "create":
-                print("❌ Uso: /fs create <filename> <contenido>")
-                return True
-            
-            filename, content = parts[2], parts[3]
-            result = await self.git_file_client.create_file(filename, content)
-            
-            if result and "isError" not in result:
-                print(f"✅ Archivo '{filename}' creado exitosamente")
-            else:
-                print(f"❌ Error creando archivo: {result}")
-            
-            return True
-
-        elif command.startswith('/git '):
-            if self.gf_active == False:
-                fs_success = await self.git_file_client.start_fs_server()
-                if not fs_success:
-                    print("❌ Error iniciando Filesystem server")
-                    return True
-                self.gf_active = True
-            
-            parts = command.split(" ", 4)  # Aumenté para manejar mensaje con espacios
-            action = parts[1] if len(parts) > 1 else ""
-            
-            if action == "init":
-                if len(parts) < 3:
-                    print("❌ Uso: /git init <nombre_repositorio>")
-                    return True
-                
-                repo_name = parts[2]
-                
-                # Crear repositorio con Git nativo
-                success = self.git_file_client.create_git_repo_native(repo_name)
-                if success:
-                    print(f"✅ Repositorio '{repo_name}' creado exitosamente")
-                    
-                    # Opcionalmente, iniciar Git MCP server si existe el repo
-                    try:
-                        await self.git_file_client.start_git_server_after_repo(repo_name)
-                        print(f"✅ Git MCP server iniciado para '{repo_name}'")
-                    except:
-                        print("⚠️ Git MCP server no disponible, usando solo Git nativo")
-                else:
-                    print(f"❌ Error creando repositorio '{repo_name}'")
-                
-                return True
-            
-            elif action == "commit":
-                if len(parts) < 5:
-                    print("❌ Uso: /git commit <repositorio> <archivo> \"mensaje\"")
-                    return True
-                
-                repo_name = parts[2]
-                file_path = parts[3]
-                commit_message = parts[4].strip('"')
-                
-                # Hacer commit con Git nativo
-                success = self.git_file_client.git_add_commit_native(
-                    repo_name, 
-                    [file_path], 
-                    commit_message
-                )
-                
-                if success:
-                    print(f"✅ Commit realizado en '{repo_name}': {commit_message}")
-                else:
-                    print(f"❌ Error en commit para '{repo_name}'")
-                
-                return True
-            
-            elif action == "status":
-                if len(parts) < 3:
-                    print("❌ Uso: /git status <repositorio>")
-                    return True
-                
-                repo_name = parts[2]
-                
-                # Intentar usar Git MCP si está disponible
-                if hasattr(self.git_file_client, 'git_process') and self.git_file_client.git_process:
-                    result = await self.git_file_client.git_status(repo_name)
-                    if result and "result" in result:
-                        content = result["result"]["content"][0]["text"]
-                        print(f"📊 Status de '{repo_name}':\n{content}")
-                    else:
-                        print(f"❌ Error obteniendo status de '{repo_name}'")
-                else:
-                    print("⚠️ Git MCP no disponible. Use: git status (comando nativo)")
-                
-                return True
-            
-            elif action == "log":
-                if len(parts) < 3:
-                    print("❌ Uso: /git log <repositorio>")
-                    return True
-                
-                repo_name = parts[2]
-                
-                # Intentar usar Git MCP si está disponible
-                if hasattr(self.git_file_client, 'git_process') and self.git_file_client.git_process:
-                    result = await self.git_file_client.git_log(repo_name)
-                    if result and "result" in result:
-                        content = result["result"]["content"][0]["text"]
-                        print(f"📜 Log de '{repo_name}':\n{content}")
-                    else:
-                        print(f"❌ Error obteniendo log de '{repo_name}'")
-                else:
-                    print("⚠️ Git MCP no disponible. Use: git log (comando nativo)")
-                
-                return True
-            
-            else:
-                print("❌ Comandos disponibles:")
-                print("   /git init <repositorio>")
-                print("   /git commit <repositorio> <archivo> \"mensaje\"")
-                print("   /git status <repositorio>")
-                print("   /git log <repositorio>")
-                return True
-
         return False
 
-    def process_user_message(self, message: str) -> str:
+    async def process_user_message(self, message: str) -> str:
         """
         Procesa mensaje del usuario y genera respuesta
         
@@ -280,23 +232,40 @@ class MCPChatbot:
         Returns:
             Respuesta del chatbot
         """
-        # Por ahora, solo usar Ollama
-        
         context = self.session.get_context()
-        response = self.ollama.send_message(message, context)
-        
-        return response
-    
-    async def call_sleep_coach(self, message: str):
-        """Conecta con el servidor Sleep Coach MCP"""
+        # Preguntar al LLM qué hacer
+        llm_response = self.ollama.send_message(message, context)
+
+        # Intentar interpretar como JSON
         try:
-            async with ClientSession("ws://localhost:8000") as session:
-                response = await session.call("sleep-coach", "recommend_sleep", {"message": message})
-                return response["recommendations"]
-        except Exception as e:
-            return [f"❌ Error conectando con Sleep Coach: {str(e)}"]
+            parsed = json.loads(llm_response)
+            if parsed.get("action") == "call_tool":
+                server_name = parsed["server"]
+                tool = parsed["tool"]
+                args = parsed.get("arguments", {})
+
+                if server_name in self.clients:
+                    result = await self.clients[server_name].call_tool(tool, args)
+                    final_answer = f"Respuesta de {server_name}/{tool}:\n {result}"
+                else:
+                    final_answer = f"❌ Servidor desconocido: {server_name}"
+            else:
+                final_answer = llm_response
+
+        except json.JSONDecodeError:
+            # No era JSON → respuesta normal del LLM
+            final_answer = llm_response
+
+        # Guardar respuesta en historial
+        self.session.add_message("assistant", final_answer)
+        
+        return final_answer
     
     async def _async_run(self):
+        print("Inicializando servidores disponibles")
+        await self.initialize_servers()
+        await self.servers_with_llm()
+
         """Versión async del loop principal"""
         while True:
             # Obtener entrada del usuario
@@ -320,7 +289,7 @@ class MCPChatbot:
             
             # Procesar mensaje
             print("🤔 Pensando...")
-            response = self.process_user_message(user_input)
+            response = await self.process_user_message(user_input)
             
             # Agregar al contexto
             self.session.add_message("user", user_input)
@@ -355,19 +324,6 @@ class MCPChatbot:
             print(f"\nError inesperado: {str(e)}")
             self.logger.logger.error(f"Error en loop principal: {str(e)}")
         finally:
-            # Limpiar recursos
-            if self.command_handler.sleep_coach_active:
-                print("🧹 Cerrando Sleep Coach Server...")
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.run_until_complete(self.sleep_coach.stop_server())
-                except:
-                    pass
-            
-            # Limpiar recursos de servicios externos
-            if self.command_handler.movies_active:
-                self.command_handler.movies_client.stop_server()
-
             # Guardar sesión al salir
             self.session.save_session(f"{self.session_id}.json")
             print("Sesión guardada automáticamente")
