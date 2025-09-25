@@ -1,56 +1,80 @@
-# MCP Chatbot - Model Context Protocol Local Chatbot
+# MCP Chatbot - Multi-Server AI Assistant
 
-A powerful and privacy-focused chatbot system that combines local language models (via Ollama) with the Model Context Protocol (MCP) for enhanced functionality. This project demonstrates how to build a comprehensive AI assistant that runs entirely on your local machine while providing advanced features through MCP servers.
+A chatbot system that integrates multiple Model Context Protocol (MCP) servers with both local (Ollama) and cloud-based (Anthropic Claude) language models. This project provides a unified interface for interacting with various specialized services including sleep coaching, beauty recommendations, video game information, file management, and more.
 
-## 🌟 Features
+## ✨ Features
 
-### Core Functionality
-- **100% Local & Private**: Uses Ollama for local language model inference
-- **MCP Integration**: Extensible architecture using Model Context Protocol
-- **Session Management**: Maintains conversation context and history
-- **Comprehensive Logging**: Tracks all interactions and MCP operations
-- **Command System**: Special commands for enhanced functionality
-
-### Specialized MCP Servers
-- **Sleep Coach**: Personalized sleep routine recommendations
-- **File System**: File creation and management
-- **Git Integration**: Basic git operations
-- **External Services**: Beauty palette generator, movie recommendations, quotes
-
-### Other Features
-- **Context Management**: Smart conversation context handling
-- **Error Recovery**: Robust error handling and recovery mechanisms
-- **Statistics Tracking**: Detailed usage statistics and analytics
-- **Session Persistence**: Save and restore conversation sessions
+- **Dual LLM Support**: Choose between local privacy with Ollama or advanced capabilities with Anthropic Claude
+- **Multiple MCP Servers**: Integrated support for 6+ specialized servers
+- **Session Management**: Persistent conversation history with context management
+- **Comprehensive Logging**: Detailed interaction tracking and performance monitoring
+- **Remote Server Support**: Connect to both local and remote MCP servers
+- **Command Interface**: Special commands for system management and debugging
 
 ## 🏗️ Architecture
 
 ```
-mcp-chatbot/
-├── main.py                    # Main chatbot application
+src/chatbot/
 ├── clients/
-│   |── ollama_client.py       # Ollama local model client
-│   |── kitchen_client.py      # Client for Kitchen Coach server
-│   |── movies_client.py       # Client for Movies Recomendation server
-│   |── remote_client.py       # Client for remote server (Sleep Quotes)
-│   └── sleep_coach_client.py  # Client for Sleep Coach server
+│   ├── ollama_client.py          # Local LLM client (privacy-focused)
+│   ├── anthropic_client.py       # Claude API client (cloud-based)
+│   ├── connection.py             # Generic MCP server connection
+│   └── remote_client.py          # Remote MCP server client
 ├── tools/
-│   ├── session_manager.py     # Conversation context management
-│   ├── logger.py              # Interaction logging system
-│   └── command_handler.py     # Special command processing
-├── mcp_oficial/
-│   └── git_file_client.py      # File system and Git operations
+│   ├── session_manager.py        # Conversation history management
+│   └── logger.py                 # Interaction logging and analytics
+├── main.py                       # Ollama-based chatbot entry point
+└── main_anthropic.py             # Claude-based chatbot entry point
 ```
 
-## 🚀 Installation
+## 🎯 Supported MCP Servers
+
+| Server | Description | Type | Features |
+|--------|-------------|------|----------|
+| **Sleep Coach** | Sleep hygiene and wellness advice | Local | Personalized sleep recommendations |
+| **Beauty Palette** | Beauty and cosmetic recommendations | Local | Color matching, product suggestions |
+| **Video Games** | Game information and recommendations | Local | Game search, reviews, recommendations |
+| **Movies** | Movie database and recommendations | Local | Film search, ratings, suggestions |
+| **Git** | Version control operations | Local | Repository management, commits |
+| **Filesystem** | File and directory operations | Local | File read/write, directory navigation |
+| **Sleep Quotes** | Inspirational sleep-related content | Remote | Daily wisdom, bedtime reminders |
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-1. **Python 3.8+**
-2. **Ollama** (for local language models)
+- Python 3.8+
+- Node.js (for filesystem server)
+- Git
+- **For Ollama**: [Ollama installation](https://ollama.com/)
+- **For Claude**: Anthropic API key
 
-### Step 1: Install Ollama
+### Installation
 
+1. **Clone the repository**
+```bash
+git clone https://github.com/Fabiola-cc/mcp-chatbot.git
+cd mcp-chatbot
+```
+
+2. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Set up environment variables**
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env file with your configurations
+# For Claude API (optional):
+ANTHROPIC_API_KEY=your_api_key_here
+```
+
+### Option 1: Local Setup with Ollama (Recommended for Privacy)
+
+4. **Install and configure Ollama**
 ```bash
 # Install Ollama
 curl -fsSL https://ollama.com/install.sh | sh
@@ -62,360 +86,179 @@ ollama serve
 ollama pull llama3.2:3b
 ```
 
-### Step 2: Clone and Setup
-
+5. **Run the chatbot**
 ```bash
-# Clone the repository
-git clone https://github.com/Fabiola-cc/mcp-chatbot.git
-cd mcp-chatbot
-
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create environment file (optional)
-cp .env.example .env
+cd src/chatbot
+python main.py
 ```
 
-### Step 3: Verify Installation
+### Option 2: Cloud Setup with Anthropic Claude
 
+4. **Configure API key**
+- Get your API key from [Anthropic Console](https://console.anthropic.com/)
+- Add it to your `.env` file
+
+5. **Run the chatbot**
 ```bash
-# Test Ollama connection
-python src/chatbot/clients/ollama_client.py
-
-# Test MCP servers
-python mcp_servers/sleep_coach.py
+cd src/chatbot
+python main_anthropic.py
 ```
 
-## 🎯 Usage
+## 💬 Usage
 
-### Basic Chatbot
+### Basic Commands
 
-```bash
-# Start the chatbot
-python src/chatbot/main.py
-```
+Once the chatbot is running, you can:
 
-### Available Commands
+- **Chat normally**: Ask questions, request recommendations, or seek advice
+- **Use special commands**: Type commands starting with `/`
 
-#### General Commands
-- `/help` - Show all available commands
-- `/quit` - Exit the chatbot
-- `/clear` - Clear conversation context
-- `/stats` - Show session statistics
-- `/context` - Show conversation summary
-- `/save` - Save current session
-- `/log` - Show interaction logs
-- `/mcp` - Show MCP server interactions
+### Special Commands
 
-#### File System Operations
-```bash
-/fs create filename.txt "File content here"
-```
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/stats` | Display session statistics |
+| `/log` | View interaction logs |
+| `/context` | Display conversation context |
+| `/clear` | Clear conversation history |
+| `/save` | Save current session |
+| `/quit` | Exit the chatbot |
 
-#### Git Operations
-```bash
-/git init                    # Initialize git repository
-/git add                     # Add files to staging
-/git commit "Commit message" # Commit changes
-```
-
-#### Sleep Coach
-```bash
-/sleep help                  # Show Sleep Coach help
-/sleep profile               # Create sleep profile
-/sleep analyze               # Analyze sleep patterns
-/sleep recommendations       # Get personalized recommendations
-/sleep schedule              # Create weekly sleep schedule
-```
-
-### Example Conversation
+### Example Interactions
 
 ```
-👤 You: Hello, I need help improving my sleep quality
+💤 You: I need help with my sleep schedule
 
-🤖 Chatbot: I'd be happy to help you improve your sleep quality! I have a specialized Sleep Coach that can provide personalized recommendations. 
+🤖 Chatbot: I can help you with sleep recommendations! Let me get some 
+personalized advice for you.
 
-You can use:
-- `/sleep profile` to create a detailed sleep profile
-- `/sleep help` to see all sleep-related commands
-- Or just tell me about your current sleep patterns and I'll provide general advice
+💤 You: Show me a motivational quote about sleep
 
-What specific sleep issues are you experiencing?
+🤖 Chatbot: [Calls Sleep Quotes server]
+🌙 INSPIRATIONAL SLEEP QUOTE 🌙
 
-👤 You: /sleep profile
+"Sleep is the best meditation that exists. Surrender to it with gratitude."
+— Dalai Lama
 
-🤖 Chatbot: Creating your sleep profile! Please provide the following information:
-- Name: 
-- Age:
-- Current bedtime:
-- Current wake time:
-- Sleep goals:
-...
+💤 You: What games are trending right now?
+
+🤖 Chatbot: [Calls Video Games server for latest trends]
 ```
 
 ## 🔧 Configuration
 
-### Ollama Configuration
+### Model Selection
 
-The chatbot automatically detects available Ollama models. You can specify a different model in the `OllamaClient` initialization:
+**Ollama Models** (Local):
+- `llama3.2:3b` - Lightweight, good performance
+- `qwen2.5:3b` - Excellent for Spanish
+- `codellama:7b` - Code-specialized
+
+**Claude Models** (Cloud):
+- `claude-3-5-haiku-20241022` - Fast, efficient
+- `claude-3-5-sonnet-20241022` - Balanced performance
+- `claude-3-opus-20240229` - Maximum capability
+
+### Session Configuration
 
 ```python
-# In src/chatbot/clients/ollama_client.py
-client = OllamaClient(model_name="llama3.2:3b")  # or any installed model
+# In session_manager.py
+session = SessionManager(
+    max_context_messages=20  # Adjust context window
+)
 ```
 
 ### Logging Configuration
 
-Customize logging in `src/chatbot/tools/logger.py`:
-
 ```python
+# In logger.py
 logger = InteractionLogger(
-    log_dir="logs",        # Log directory
-    log_level="INFO"       # Log level
+    log_dir="logs",
+    log_level="INFO"  # DEBUG, INFO, WARNING, ERROR
 )
 ```
 
-### Session Management
+## 🔌 Adding New MCP Servers
 
-Configure context size in `src/chatbot/tools/session_manager.py`:
+1. **Create server implementation** in `servidores locales mcp/`
+2. **Add client connection** in `clients/`
+3. **Register in main.py**:
 
 ```python
-session = SessionManager(
-    max_context_messages=20  # Maximum messages in context
+self.clients["your_server"] = Client()
+
+await self.clients["your_server"].start_server(
+    "your_server", 
+    sys.executable,
+    "path/to/your/server.py"
 )
 ```
 
-## 🏥 Sleep Coach MCP Server
+4. **Update LLM context** with server tools
 
-The Sleep Coach is a specialized MCP server that provides personalized sleep recommendations based on chronotypes, sleep science, and individual patterns.
+## 📊 Monitoring and Analytics
 
-- you can access this server in this repository: [https://github.com/Fabiola-cc/SleepCoachServer](https://github.com/Fabiola-cc/SleepCoachServer)
+The system provides comprehensive monitoring:
 
-### Features
+- **Session Statistics**: Message counts, duration, context usage
+- **MCP Interactions**: Success rates, server usage, error tracking
+- **Performance Metrics**: Response times, token usage
+- **Detailed Logging**: Full interaction history with timestamps
 
-- **Chronotype Analysis**: Morning lark, night owl, or intermediate
-- **Personalized Recommendations**: Based on age, goals, and current patterns
-- **Weekly Schedule Creation**: Optimized sleep/wake times
-- **Sleep Hygiene Guidelines**: Evidence-based recommendations
-- **Progress Tracking**: Monitor improvements over time
-
-### Sleep Coach Tools
-
-1. **create_user_profile**: Create detailed user profile with sleep habits
-2. **analyze_sleep_pattern**: Analyze current sleep patterns and identify issues
-3. **get_personalized_recommendations**: Generate personalized recommendations
-4. **create_weekly_schedule**: Create optimized weekly sleep schedule
-5. **quick_sleep_advice**: Get quick advice for specific sleep issues
-
-### Example Usage
-
-```python
-# Create user profile
-profile_data = {
-    "user_id": "user123",
-    "name": "John Doe",
-    "age": 30,
-    "chronotype": "night_owl",
-    "current_bedtime": "23:30",
-    "current_wake_time": "07:00",
-    "sleep_duration_hours": 7.5,
-    "goals": ["better_quality", "more_energy"]
-}
-
-# Get analysis and recommendations
-analysis = sleep_coach.analyze_sleep_pattern("user123")
-recommendations = sleep_coach.get_personalized_recommendations("user123")
-```
-
-## 🔌 MCP Server Development
-
-### Creating New MCP Servers
-
-1. **Define Tools**: Specify available functions and their schemas
-2. **Implement Handlers**: Create async handlers for each tool
-3. **Add to Main**: Register the server in the main application
-
-Example MCP server structure:
-
-```python
-import asyncio
-import mcp.types as types
-from mcp.server import Server
-
-app = Server("my-server")
-
-@app.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="my_tool",
-            description="My custom tool",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "input": {"type": "string"}
-                },
-                "required": ["input"]
-            }
-        )
-    ]
-
-@app.call_tool()
-async def handle_call_tool(name: str, arguments: dict):
-    if name == "my_tool":
-        return [types.TextContent(
-            type="text", 
-            text=f"Processing: {arguments['input']}"
-        )]
-```
-
-## 🔍 Monitoring and Debugging
-
-### Logs Location
-
-- **Main Log**: `logs/interactions.log`
-- **MCP Interactions**: `logs/mcp_interactions.json`
-- **Session Files**: `session_YYYYMMDD_HHMMSS.json`
-
-### Debug Mode
-
-Enable debug mode by setting the log level:
-
-```python
-logger = InteractionLogger(log_level="DEBUG")
-```
-
-### Performance Monitoring
-
-- Response times are automatically tracked
-- Token usage estimation for local models
-- MCP server success rates and error tracking
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-├── src/chatbot/           # Main chatbot application
-├── clients/              # MCP client implementations
-├── logs/                # Log files (auto-created)
-├── workspace/           # Git operations workspace
-├── requirements.txt     # Python dependencies
-└── README.md           # This file
-```
-
-### Adding New Features
-
-1. **New Commands**: Add to `CommandHandler` class
-2. **New MCP Servers**: Create in `mcp_servers/` directory
-3. **New Clients**: Add to `clients/` directory
-4. **New Tools**: Extend existing MCP servers
-
-### Testing
-
-```bash
-# Test individual components
-python src/chatbot/clients/ollama_client.py
-python mcp_servers/sleep_coach.py
-python clients/sleep_coach_client.py
-
-# Test full integration
-python src/chatbot/main.py
-```
-
-## 📊 Performance
-
-### Local Model Performance
-
-- **Llama 3.2 3B**: Fast responses, good for general chat
-- **CodeLlama 7B**: Better for code-related tasks
-- **Qwen2.5 3B**: Excellent multilingual support
-
-### Optimization Tips
-
-1. **Use smaller models** for faster responses
-2. **Limit context size** to reduce processing time
-3. **Enable GPU acceleration** if available with Ollama
-4. **Monitor memory usage** with larger models
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add your changes
-4. Test thoroughly
-5. Submit a pull request
-
-### Development Guidelines
-
-- Follow Python PEP 8 style guidelines
-- Add comprehensive error handling
-- Include type hints where possible
-- Document new MCP servers and tools
-- Test with multiple Ollama models
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## 🔗 Related Projects
-
-- [Ollama](https://ollama.com/) - Local language model runtime
-- [Model Context Protocol](https://modelcontextprotocol.io/) - MCP specification
-- [Anthropic MCP](https://github.com/anthropics/mcp) - MCP implementations
-
-## 🆘 Support
+## 🐛 Troubleshooting
 
 ### Common Issues
 
 **Ollama Connection Failed**
 ```bash
-# Make sure Ollama is running
+# Ensure Ollama is running
 ollama serve
 
-# Check if models are available
+# Check if model is available
 ollama list
-
-# Download a model if needed
-ollama pull llama3.2:3b
 ```
 
-**MCP Server Not Starting**
-- Check Python dependencies are installed
-- Verify server file permissions
-- Check logs for detailed error messages
+**Anthropic API Error**
+```bash
+# Verify API key in .env
+echo $ANTHROPIC_API_KEY
 
-**Memory Issues**
-- Use smaller models (3B instead of 7B+)
-- Reduce context window size
-- Monitor system resources
+# Check API key validity at console.anthropic.com
+```
 
-### Getting Help
+**MCP Server Startup Failed**
+```bash
+# Check server logs
+tail -f logs/interactions.log
 
-- Check the logs: `/log` and `/mcp` commands
-- Review error messages in console output
-- Test individual components separately
-- Open an issue on GitHub with detailed information
+# Verify server dependencies
+python servidores_locales_mcp/YourServer/server.py
+```
 
-## 🎯 Roadmap
+## 🤝 Contributing
 
-- [ ] Web interface for the chatbot
-- [ ] Additional MCP servers (calendar, email, etc.)
-- [ ] Multi-model support
-- [ ] Voice interface integration
-- [ ] Docker containerization
-- [ ] Advanced sleep tracking integration
-- [ ] Plugin system for easy extensions
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
----
+### Development Guidelines
 
-**Built with ❤️ using Local AI and MCP**
+- Follow existing code structure and naming conventions
+- Add comprehensive error handling
+- Include logging for new features
+- Test with both Ollama and Claude configurations
+- Update documentation for new MCP servers
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) for the standardization
+- [Anthropic](https://www.anthropic.com/) for Claude API
+- [Ollama](https://ollama.com/) for local LLM infrastructure
+- All contributors to the MCP server ecosystem
