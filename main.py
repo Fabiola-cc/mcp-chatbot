@@ -7,10 +7,10 @@ import asyncio
 from datetime import datetime
 from typing import Dict
 from dotenv import load_dotenv
-from mcp import ClientSession
 
 from clients.ollama_client import OllamaClient
 from clients.connection import Client
+from clients.remote_client import RemoteSleepQuotesClient
 
 from tools.session_manager import SessionManager
 from tools.logger import InteractionLogger
@@ -32,9 +32,10 @@ class MCPChatbot:
                 "git": Client(),
                 "files": Client(),
                 "sleep_coach": Client(),
-                "remote": Client(),
+                "remote": RemoteSleepQuotesClient(),
                 "beauty": Client(),
-                "videogames": Client()
+                "videogames": Client(),
+                "movies": Client()
             }
             
             print("Inicializando chatbot MCP con Ollama...")
@@ -72,6 +73,13 @@ class MCPChatbot:
             "videogames", sys.executable,
             str(Path(__file__).parent.parent / "servidores locales mcp/MCP_VIDEOGAMES_REC_INFO/server/mcp_server.py")
         )
+
+        await self.clients["movies"].start_server(
+            "movies", sys.executable,
+            str(Path(__file__).parent.parent / "servidores locales mcp/Movies_ChatBot/movie_server.py")
+        )
+
+        await self.clients["remote"].start_server()
         
         return
     
@@ -82,58 +90,71 @@ class MCPChatbot:
         files_tools = await self.clients["files"].list_tools()
         beauty_tools = await self.clients["beauty"].list_tools()
         videogames_tools = await self.clients["videogames"].list_tools()
+        movies_tools = await self.clients["movies"].list_tools()
+        remote_tools = await self.clients["remote"].list_tools()
 
         # Construir contexto para el LLM
         llm_context = f"""
-    Eres un asistente conectado a varios servidores MCP. 
-    Tienes acceso a las siguientes herramientas, agrupadas por servidor:
+        Este es el contexto para esta conversación
+        Eres un asistente conectado a varios servidores MCP. 
+        Tienes acceso a las siguientes herramientas, agrupadas por servidor:
 
-    - Sleep Coach (sleep_coach):
-    {sleep_tools}
+        - Sleep Coach (sleep_coach):
+        {sleep_tools}
 
-    - Git (git):
-    {git_tools}
+        - Beauty Recomendation (beauty):
+        {beauty_tools}
 
-    - Filesystem (files):
-    {files_tools}
+        - Videogame Search (videogames):
+        {videogames_tools}
 
-    Instrucciones importantes:
-    1. Analiza siempre el mensaje del usuario.
-    2. Si el mensaje requiere usar una herramienta de un servidor MCP, responde ÚNICAMENTE en JSON con este formato:
-    {{
-    "action": "call_tool",
-    "server": "<nombre_servidor>",   // uno de: "sleep_coach", "git", "files"
-    "tool": "<nombre_tool>",         // el nombre de la herramienta exacta
-    "arguments": {{ ... }}           // diccionario de argumentos
-    }}
-    3. Si el mensaje no requiere usar ninguna herramienta, responde con texto normal, de manera natural.
-    4. No combines respuesta en texto con el JSON. Es uno u otro.
-    5. Si no estás seguro de qué herramienta usar, responde en texto normal y pide más aclaración.
+        - Movies Search (movies):
+        {movies_tools}
 
-    Ejemplo 1 (el usuario pide un consejo para dormir mejor):
-    {{
-    "action": "call_tool",
-    "server": "sleep_coach",
-    "tool": "get_quote",
-    "arguments": {{"category": "motivación"}}
-    }}
+        - Sleep Quotes (remote)
+        {remote_tools}
 
-    Ejemplo 2 (el usuario pide ver el contenido de un archivo README.md):
-    {{
-    "action": "call_tool",
-    "server": "files",
-    "tool": "fs/readFile",
-    "arguments": {{"path": "README.md"}}
-    }}
+        - Git (git):
+        {git_tools}
 
-    Ejemplo 3 (el usuario pregunta algo general sin usar tools):
-    "Claro, ¿quieres que te dé un resumen de los pasos a seguir?"
-    """
+        - Filesystem (files):
+        {files_tools}
+
+        Instrucciones importantes:
+        1. Analiza siempre el mensaje del usuario.
+        2. Si el mensaje requiere usar una herramienta de un servidor MCP, responde ÚNICAMENTE en JSON con este formato:
+        {{
+        "action": "call_tool",
+        "server": "<nombre_servidor>",   // uno de: "sleep_coach", "beauty", "videogames", "git", "files"
+        "tool": "<nombre_tool>",         // el nombre de la herramienta exacta
+        "arguments": {{ ... }}           // diccionario de argumentos
+        }}
+        3. Si el mensaje no requiere usar ninguna herramienta, responde con texto normal, de manera natural.
+        4. No combines respuesta en texto con el JSON. Es uno u otro.
+        5. Si no estás seguro de qué herramienta usar, responde en texto normal y pide más aclaración.
+
+        Ejemplo 1 (el usuario pide un consejo para dormir mejor):
+        {{
+        "action": "call_tool",
+        "server": "sleep_coach",
+        "tool": "get_quote",
+        "arguments": {{"category": "motivación"}}
+        }}
+
+        Ejemplo 2 (el usuario pide ver el contenido de un archivo README.md):
+        {{
+        "action": "call_tool",
+        "server": "files",
+        "tool": "fs/readFile",
+        "arguments": {{"path": "README.md"}}
+        }}
+
+        Ejemplo 3 (el usuario pregunta algo general sin usar tools):
+        "Claro, ¿quieres que te dé un resumen de los pasos a seguir?"
+        """
         try:
-            print("ENVIANDO CONTEXTO")
             # Enviar el contexto al LLM y registrar en la sesión
             llm_response = self.ollama.send_message(llm_context)
-            print("CONTEXTO ENVIADO: " + llm_response)
             self.session.add_message("user", llm_context)
         except Exception as e:
             print(f"❌ Error enviando contexto: {e}")
@@ -159,7 +180,6 @@ class MCPChatbot:
         print("  /save         - Guardar sesión actual")
         print("  /quit         - Salir del chatbot")
         print()
-        print("🛌 Sleep Coach, 👨‍🍳 Kitchen Coach y 🎬 Movies Recomendator listos para recomendaciones personalizadas")
         print("="*60)
     
     async def process_special_command(self, command: str) -> bool:
@@ -239,6 +259,11 @@ class MCPChatbot:
         # Intentar interpretar como JSON
         try:
             parsed = json.loads(llm_response)
+
+            if parsed["server"] == "remote":
+                tool = parsed["tool"]
+                result = await self.clients["remote"].call_tool(tool)
+
             if parsed.get("action") == "call_tool":
                 server_name = parsed["server"]
                 tool = parsed["tool"]
