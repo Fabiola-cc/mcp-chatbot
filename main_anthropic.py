@@ -102,7 +102,7 @@ class MCPChatbot:
         - Movies Search (movies):
         {movies_tools}
 
-        - Sleep Quotes (remote)
+        - Sleep Quotes (remote):
         {remote_tools}
 
         - Git (git):
@@ -116,23 +116,57 @@ class MCPChatbot:
         2. Si el mensaje requiere usar una herramienta de un servidor MCP, responde ÚNICAMENTE en JSON con este formato:
         {{
         "action": "call_tool",
-        "server": "<nombre_servidor>",   // uno de: "sleep_coach", "beauty", "videogames", "git", "files"
+        "server": "<nombre_servidor>",   // uno de: "sleep_coach", "beauty", "videogames", "movies", "remote", "git", "files"
         "tool": "<nombre_tool>",         // el nombre de la herramienta exacta
         "arguments": {{ ... }}           // diccionario de argumentos
         }}
         3. Si el mensaje no requiere usar ninguna herramienta, responde con texto normal, de manera natural.
-        4. No combines respuesta en texto con el JSON. Es uno u otro.
-        5. Si no estás seguro de qué herramienta usar, responde en texto normal y pide más aclaración.
+        4. Es IMPORTANTE que NO combines respuesta en texto con el JSON. Es UNO U OTRO.
+        5. IMPORTANTE:
+            - Si hay varias acciones, devuelve **un solo JSON** que sea un **array** con todos los objetos de acción.
+            - No agregues ningún texto antes o después.
+            - El array debe iniciar con `[` y terminar con `]`.
+            - Cada acción es un objeto `{ ... }` separado por comas dentro del array.
+            - Nunca devuelvas más de un JSON; todo debe estar dentro del mismo array.
+        6. Si no estás seguro de qué herramienta usar, responde en texto normal y pide más aclaración.
+        7. Si tienes un tool pero necesitas completar más parámetros, responde en texto normal (sin incluir la tool) y solicita la información faltante.
 
-        Ejemplo 1 (el usuario pide un consejo para dormir mejor):
+        Ejemplo 1 (el usuario te da informacion general sobre su perfil de sueño):
         {{
         "action": "call_tool",
         "server": "sleep_coach",
-        "tool": "get_quote",
-        "arguments": {{"category": "motivación"}}
+        "tool": "create_user_profile",
+        "arguments": {{
+            "user_id": "estudiante_21"
+            "name": "estudiante",
+            "age": 21,
+            "chronotype": "morning_lark",
+            "sleep_duration_hours": 9
+        }}
         }}
 
-        Ejemplo 2 (el usuario pide ver el contenido de un archivo README.md):
+        Ejemplo 2 (el usuario te da informacion general sobre su perfil de sueño, pero ya existe el usuario):
+        {{
+        "action": "call_tool",
+        "server": "sleep_coach",
+        "tool": "update_user_profile",
+        "arguments": {{
+            "user_id": "estudiante_21",
+            "goals": ["better_quality","more_energy"],
+            "stress_level": 7
+        }}
+        }}
+
+        Ejemplo 3 (el usuario pide un consejo para mejorar su calidad de sueño):
+        {{
+        "action": "call_tool",
+        "server": "sleep_coach",
+        "tool": "get_sleep_advice",
+        "arguments": {{
+            "user_id": "estudiante_21"
+        }}
+        }}
+        Ejemplo 4 (el usuario pide ver un archivo README.md):
         {{
         "action": "call_tool",
         "server": "files",
@@ -140,9 +174,10 @@ class MCPChatbot:
         "arguments": {{"path": "README.md"}}
         }}
 
-        Ejemplo 3 (el usuario pregunta algo general sin usar tools):
+        Ejemplo 5 (el usuario pregunta algo general sin usar tools):
         "Claro, ¿quieres que te dé un resumen de los pasos a seguir?"
         """
+
         try:
             # Enviar el contexto al LLM y registrar en la sesión
             self.claude.send_message(llm_context)
@@ -200,7 +235,7 @@ class MCPChatbot:
             print(f"  Total mensajes: {stats['total_messages']}")
             print(f"  Mensajes usuario: {stats['user_messages']}")
             print(f"  Mensajes chatbot: {stats['assistant_messages']}")
-            print(f"   Duración: {stats['session_duration']}")
+            print(f"  Duración: {stats['session_duration']}")
             print(f"  Mensajes en contexto: {stats['messages_in_context']}")
             print(f"\nESTADÍSTICAS MCP:")
             print(f"  Interacciones totales: {mcp_stats['total_interactions']}")
@@ -228,6 +263,21 @@ class MCPChatbot:
         
         return False
 
+
+    async def handle_tool_result(self, user_input, result):
+        # Detectar si es JSON o se puede parsear
+        try:
+            result_json = json.dumps(json.loads(result), ensure_ascii=False, indent=2)
+        except json.JSONDecodeError:
+            # no es json válido → devuélvelo tal cual
+            return str(result)
+
+        llm_response = self.claude.send_message(f"El usuario preguntó: {user_input}\n\nAquí tienes el resultado del servidor:\n\n{result_json}\n\nParsea esto en un texto claro y útil para el usuario.", 
+                                                conversation_history=[{"role": "system", "content": "Eres un asistente que convierte JSON en respuestas amigables. Sin añadir demasiada información extra."}])
+
+        return llm_response
+
+
     async def process_user_message(self, message: str) -> str:
         """
         Procesa mensaje del usuario y genera respuesta
@@ -241,27 +291,34 @@ class MCPChatbot:
         context = self.session.get_context()
         # Preguntar al LLM qué hacer
         llm_response = self.claude.send_message(message, context)
-
+        final_answer = ""
         # Intentar interpretar como JSON
         try:
-            parsed = json.loads(llm_response)
+            parsed_json = json.loads(llm_response)
 
-            if parsed["server"] == "remote":
-                tool = parsed["tool"]
-                result = await self.clients["remote"].call_tool(tool)
+            # Si es un solo dict, lo convertimos en lista de uno solo
+            if isinstance(parsed_json, dict):
+                parsed_json = [parsed_json]
 
-            if parsed.get("action") == "call_tool":
-                server_name = parsed["server"]
-                tool = parsed["tool"]
-                args = parsed.get("arguments", {})
+            for parsed in parsed_json:
+                if parsed.get("action") == "call_tool":
+                    server_name = parsed["server"]
+                    tool = parsed["tool"]
+                    args = parsed.get("arguments", {})
 
-                if server_name in self.clients:
-                    result = await self.clients[server_name].call_tool(tool, args)
-                    final_answer = f"Respuesta de {server_name}/{tool}:\n {result}"
+                    if server_name in self.clients:
+                        if server_name == "remote":
+                            result = await self.clients[server_name].call_endpoint(tool, args)
+                        else:
+                            result = await self.clients[server_name].call_tool(tool, args)
+                        self.logger.log_mcp_interaction(server_name, tool, args, result)
+                        final_answer = final_answer + "\n\n" +await self.handle_tool_result(message, result)
+                        
+                    else:
+                        final_answer = f"❌ Servidor desconocido: {server_name}"
+                        self.logger.log_mcp_interaction(server_name, tool, args, result, False, error=final_answer)
                 else:
-                    final_answer = f"❌ Servidor desconocido: {server_name}"
-            else:
-                final_answer = llm_response
+                    final_answer = final_answer + "\n\n" + llm_response
 
         except json.JSONDecodeError:
             # No era JSON → respuesta normal del LLM
@@ -277,41 +334,48 @@ class MCPChatbot:
         await self.initialize_servers()
         await self.servers_with_llm()
 
-        """Versión async del loop principal"""
-        while True:
-            # Obtener entrada del usuario
-            user_input = input(f"\n👤 Tú: ").strip()
-            
-            # Verificar si es comando especial
-            if user_input.startswith('/'):
-                should_quit = await self.process_special_command(user_input)
-                if user_input.lower() == '/quit':
-                    break
-                if should_quit:
+        try:
+            while True:
+                # Obtener entrada del usuario
+                user_input = await asyncio.to_thread(input, "\n👤 Tú: ")
+                user_input = user_input.strip()
+
+                # Comandos especiales
+                if user_input.startswith('/'):
+                    should_quit = await self.process_special_command(user_input)
+                    if user_input.lower() == '/quit':
+                        break
+                    if should_quit:
+                        continue
+
+                if not user_input:
+                    print("💭 Por favor ingresa un mensaje o usa /help para ver comandos")
                     continue
-                
-            # Verificar entrada vacía
-            if not user_input:
-                print("💭 Por favor ingresa un mensaje o usa /help para ver comandos")
-                continue
-            
-            # Registrar entrada del usuario
-            self.logger.log_user_input(user_input, self.session_id)
-            
-            # Procesar mensaje
-            print("🤔 Pensando...")
-            response = await self.process_user_message(user_input)
-            
-            # Agregar al contexto
-            self.session.add_message("user", user_input)
-            self.session.add_message("assistant", response)
-            
-            # Registrar respuesta
-            estimated_tokens = self.claude.estimate_tokens(response)
-            self.logger.log_anthropic_response(response, estimated_tokens, self.session_id)
-            
-            # Mostrar respuesta
-            print(f"\n🤖 Chatbot: {response}")
+
+                # Registrar entrada del usuario
+                self.logger.log_user_input(user_input, self.session_id)
+
+                # Procesar mensaje
+                print("🤔 Pensando...")
+                response = await self.process_user_message(user_input)
+
+                # Agregar al contexto
+                self.session.add_message("user", user_input)
+                self.session.add_message("assistant", response)
+
+                # Registrar respuesta
+                estimated_tokens = self.claude.estimate_tokens(response)
+                self.logger.log_anthropic_response(response, estimated_tokens, self.session_id)
+
+                # Mostrar respuesta
+                print(f"\n🤖 Chatbot: {response}")
+
+        finally:
+            # Cerrar todos los clientes al salir del loop
+            for client in self.clients:
+                await self.clients[client].stop_server()
+            print("¡Todos los servidores cerrados correctamente!")
+
 
     def run(self):
         """Ejecuta el loop principal del chatbot"""
@@ -339,6 +403,7 @@ class MCPChatbot:
             self.session.save_session(f"{self.session_id}.json")
             print("Sesión guardada automáticamente")
             print("¡Hasta luego!")
+            
 
 
 if __name__ == "__main__":

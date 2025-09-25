@@ -70,11 +70,18 @@ class SessionManager:
         print(f"🧹 Contexto limpiado. Sesión reiniciada.")
     
     def _trim_context(self) -> None:
-        """Mantiene solo los últimos N mensajes para evitar exceder límites"""
+        """Mantiene solo los últimos N mensajes, pero nunca borra el primero"""
         if len(self.conversation_history) > self.max_context_messages:
-            removed_count = len(self.conversation_history) - self.max_context_messages
-            self.conversation_history = self.conversation_history[-self.max_context_messages:]
-            print(f"ℹ️  Se removieron {removed_count} mensajes antiguos del contexto")
+            # Conserva siempre el primer mensaje
+            first_msg = self.conversation_history[0]
+            # Calcula cuántos mensajes recortar de los demás
+            trimmed_history = self.conversation_history[1:]
+            removed_count = len(trimmed_history) - (self.max_context_messages - 1)
+            if removed_count > 0:
+                trimmed_history = trimmed_history[-(self.max_context_messages - 1):]
+                print(f"ℹ️  Se removieron {removed_count} mensajes antiguos del contexto")
+            # Reconstruye el historial con el primer mensaje intacto
+            self.conversation_history = [first_msg] + trimmed_history
     
     def get_session_stats(self) -> Dict:
         """

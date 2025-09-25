@@ -185,11 +185,19 @@ class RemoteSleepQuotesClient:
                 if "{query}" in endpoint and "query" in arguments:
                     url = url.replace("{query}", str(arguments["query"]))
                     # Crear params sin query (ya está en la URL)
-                    params = {k: v for k, v in arguments.items() if k != "query" and (not valid_params or k in valid_params)}
+                    params = {
+                        k: str(v) if isinstance(v, bool) else v
+                        for k, v in arguments.items() 
+                        if k != "query" and (not valid_params or k in valid_params)
+                    }
                 else:
                     # Para otros GET, usar query parameters normales
-                    params = {k: v for k, v in arguments.items() if not valid_params or k in valid_params}
-                
+                    params = {
+                        k: str(v) if isinstance(v, bool) else v
+                        for k, v in arguments.items()
+                        if not valid_params or k in valid_params
+                    }
+
                 async with self.session.get(url, params=params, timeout=10) as response:
                     if response.status == 200:
                         return await response.text()
