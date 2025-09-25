@@ -66,7 +66,7 @@ class MCPChatbot:
 
         await self.clients["beauty"].start_server(
             "beauty", sys.executable,
-            str(Path(__file__).parent.parent / "servidores locales mcp/beauty-palette-server-local/beauty_mcp_server_local.py")
+            str(Path(__file__).parent.parent / "servidores locales mcp/beauty-palette-server-local/beauty_server.py")
         )
 
         await self.clients["videogames"].start_server(
@@ -173,7 +173,6 @@ class MCPChatbot:
         print("COMANDOS ESPECIALES:")
         print("  /help         - Mostrar esta ayuda")
         print("  /log          - Mostrar log de interacciones")
-        print("  /mcp          - Mostrar interacciones MCP")
         print("  /stats        - Mostrar estadísticas de la sesión")
         print("  /context      - Mostrar resumen del contexto actual")
         print("  /clear        - Limpiar contexto de conversación")
@@ -200,10 +199,6 @@ class MCPChatbot:
             
         elif command == '/log':
             self.logger.show_interaction_log()
-            return True
-            
-        elif command == '/mcp':
-            self.logger.show_mcp_interactions()
             return True
             
         elif command == '/stats':

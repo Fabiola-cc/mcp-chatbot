@@ -158,46 +158,6 @@ class InteractionLogger:
         except FileNotFoundError:
             print("📭 No hay log de interacciones disponible aún.")
     
-    def show_mcp_interactions(self, server_filter: str = None, limit: int = 20) -> None:
-        """
-        Muestra interacciones MCP recientes
-        
-        Args:
-            server_filter: Filtrar por servidor específico
-            limit: Número máximo de interacciones a mostrar
-        """
-        interactions = self.mcp_interactions
-        
-        # Filtrar por servidor si se especifica
-        if server_filter:
-            interactions = [i for i in interactions if i['server'] == server_filter]
-        
-        # Tomar las más recientes
-        recent_interactions = interactions[-limit:]
-        
-        print(f"\n{'='*60}")
-        print(f"🔧 INTERACCIONES MCP (últimas {len(recent_interactions)})")
-        if server_filter:
-            print(f"📡 Servidor: {server_filter}")
-        print(f"{'='*60}")
-        
-        for interaction in recent_interactions:
-            timestamp = datetime.fromisoformat(interaction['timestamp'])
-            status_icon = "✅" if interaction['success'] else "❌"
-            
-            print(f"\n{status_icon} {timestamp.strftime('%H:%M:%S')} | {interaction['server']} | {interaction['action']}")
-            
-            if interaction['parameters']:
-                print(f"   📥 Parámetros: {json.dumps(interaction['parameters'], indent=6)}")
-            
-            if interaction['success'] and interaction['result']:
-                result_str = str(interaction['result'])[:200]
-                print(f"   📤 Resultado: {result_str}...")
-            elif not interaction['success']:
-                print(f"   ❌ Error: {interaction['error']}")
-        
-        print(f"{'='*60}\n")
-    
     def get_mcp_stats(self) -> Dict[str, Any]:
         """Retorna estadísticas de uso de servidores MCP"""
         if not self.mcp_interactions:
